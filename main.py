@@ -208,7 +208,7 @@ def generate_audio(state: AgentState):
     formatted_transcript = format_transcript(response)
     print("Formatted transcript:", formatted_transcript)
     
-    audio_path = f"audio_{datetime.now().timestamp()}.mp3"
+    audio_path = f"output/audio_{datetime.now().timestamp()}.mp3"
     
     # Save audio from base64
     audio_base64 = response["audio_base64"]
@@ -361,7 +361,7 @@ def create_video(state: AgentState):
             response.raise_for_status()
             
             # Create a temporary file with .jpg extension
-            temp_file = f"temp_img_{len(temp_image_files)}.jpg"
+            temp_file = f"output/temp_img_{len(temp_image_files)}.jpg"
             temp_image_files.append(temp_file)
             
             # Save the image data
@@ -445,7 +445,7 @@ def create_video(state: AgentState):
             # Create final video with audio
             final_video = video.with_audio(audio)
             
-            output_path = f"video_output_{datetime.now().timestamp()}.mp4"
+            output_path = f"output/video_output_{datetime.now().timestamp()}.mp4"
             
             # Write with explicit audio parameters
             final_video.write_videofile(
