@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
 from elevenlabs.client import ElevenLabs
 from elevenlabs import play, VoiceSettings
@@ -37,9 +37,9 @@ class AgentState(TypedDict):
 
 # 2. Initialize Tools and Models
 tavily = TavilySearchResults(max_results=3)
-llm = ChatGroq(
-    groq_api_key=os.getenv("GROQ_API_KEY"),
-    model_name="llama-3.3-70b-versatile",
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",
+    api_key=os.getenv("GEMINI_API_KEY"),
 )
 parser = JsonOutputParser()
 
@@ -62,11 +62,14 @@ def research_and_generate_transcript(state: AgentState):
         3. Call-to-Action (25-30s): End with an engaging prompt
         
         Each segment MUST:
-        - Be concise and punchy
-        - Use action words and emotional language
-        - Match vertical video format
-        - Have clear timing separation
-        - Correspond to a distinct, visually striking image
+        - Be written in a conversational, natural speaking style
+        - Use interjections like "Hey!", "Wow!", "You won't believe this!"
+        - Include emotional emphasis ("This is incredible!", "I'm so excited to share...")
+        - Add natural pauses with "..." for dramatic effect
+        - Use rhetorical questions to engage viewers
+        - Avoid any formatting symbols or special characters
+        - Sound authentic and human-like
+        - The text key in the json response should only contain the text 
 
         Format JSON exactly(The output response should be exactly like this):
         {{
@@ -74,11 +77,11 @@ def research_and_generate_transcript(state: AgentState):
                 {{
                     "start": "00:00",
                     "duration": "00:02",
-                    "text": "Text for this segment"
+                    "text": "Hey guys! You won't believe what I discovered..."
                 }},
                 ...
             ],
-            "totalDuration": "00:08"
+            "totalDuration": "00:30"
         }}"""
     )
     chain = script_prompt | llm | parser
@@ -229,23 +232,25 @@ def generate_images(state: AgentState):
     
     # Create prompt template for combining segments
     combine_prompt = ChatPromptTemplate.from_template(
-        """Given the following video script segments, combine them into fewer segments that would work well with single image generation.
-        Keep all the original text but group them logically. Maintain proper timing.
-        
-        Original segments: {segments}
-        
-        Format the response exactly as(The output response should be exactly like this):
+        """Given the following video script segments, combine them into fewer segments suitable for generating a single image for each segment. 
+Keep all the original text but group them logically while preserving proper timing.
+Each output segment’s duration must be at least 5 seconds and no more than 6 seconds.
+If there are many short, similar segments, group them together; if there are longer segments, split them into parts so that each segment fits within the 5-6 second range.
+Original segments: {segments}
+
+Format the response exactly as:
+{{
+    "videoScript": [
         {{
-            "videoScript": [
-                {{
-                    "start": "MM:SS",
-                    "duration": "MM:SS",
-                    "text": "Combined text for this segment"
-                }}
-            ],
-            "totalDuration": "MM:SS"
-        }}
-        """
+            "start": "MM:SS",
+            "duration": "MM:SS",
+            "text": "Combined text for this segment"
+        }},
+        ...
+    ],
+    "totalDuration": "MM:SS"
+}}
+"""
     )
     
     # Create chain for combining segments
@@ -504,6 +509,7 @@ app = workflow.compile()
 # 5. Execution
 if __name__ == "__main__":
     result = app.invoke({
-        "topic": "Top 3 AI Tools for Content Creation"
+        # "topic": "Top 3 AI Tools for Content Creation"
+        "topic": "Short moral of a story"
     })
     print(f"Final video created at: {result['final_video_path']}")
