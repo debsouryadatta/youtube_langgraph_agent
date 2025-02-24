@@ -1,2 +1,2 @@
-
-`uv add langchain langgraph tavily-python firecrawl-py python-dotenv elevenlabs fal-client moviepy requests langchain-groq langchain-core langchain-community moviepy`
+## YOUTUBE AI AGENT WITH LANGGRAPH
+- Create youtube content with this ai agent (fully autonomous)

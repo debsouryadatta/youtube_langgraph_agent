@@ -53,12 +53,22 @@ def research_and_generate_transcript(state: AgentState):
     
     # Generate script
     script_prompt = ChatPromptTemplate.from_template(
-        """Create a 8 seconds long YouTube Shorts script about {topic} using this research:
+        """Create a compelling 30-second YouTube Shorts script about {topic} using this research:
         {research}
         
-        Each segment in the video script should correspond to a distinct image. Ensure clear separation between segments with specific start and duration times.
+        Follow these guidelines strictly:
+        1. Hook (0-5s): Start with an attention-grabbing opening line
+        2. Core Content (5-25s): Present key information in short, impactful sentences
+        3. Call-to-Action (25-30s): End with an engaging prompt
+        
+        Each segment MUST:
+        - Be concise and punchy
+        - Use action words and emotional language
+        - Match vertical video format
+        - Have clear timing separation
+        - Correspond to a distinct, visually striking image
 
-        Format JSON exactly:
+        Format JSON exactly(The output response should be exactly like this):
         {{
             "videoScript": [
                 {{
@@ -82,10 +92,25 @@ def research_and_generate_transcript(state: AgentState):
 def generate_title_description(state: AgentState):
     print("Generating title and description...")
     prompt = ChatPromptTemplate.from_template(
-        """Generate YouTube metadata for this script:
+        """Generate compelling YouTube Shorts metadata for this script:
         {script}
         
-        Return JSON with:
+        Follow these guidelines:
+        1. Title must:
+           - Start with a powerful action word or number
+           - Include trending keywords
+           - Create curiosity or urgency
+           - Be optimized for YouTube search
+           - Stay under 60 characters
+        
+        2. Description must:
+           - Start with a hook
+           - Include relevant hashtags
+           - Use strategic emojis
+           - Add a clear call-to-action
+           - Stay under 200 characters
+        
+        Return JSON with(The output response should be exactly like this):
         {{
             "title": "Catchy title under 60 chars",
             "description": "Engaging description with emojis (200 chars)"
@@ -98,15 +123,23 @@ def generate_title_description(state: AgentState):
 
 def generate_thumbnail(state: AgentState):
     print("Generating thumbnail...")
-    prompt_text = f"""YouTube thumbnail for '{state["title"]}'. {state["description"]}.
-    Vibrant colors, dramatic lighting, trending style."""
+    prompt_text = f"""Create a visually striking YouTube Shorts thumbnail for '{state["title"]}'.
+    {state["description"]}
+    
+    Style requirements:
+    - Vertical format optimized for mobile
+    - High contrast and vibrant colors
+    - Cinematic lighting with dramatic shadows
+    - Modern, trending aesthetic
+    - Clean composition with clear focal point
+    - Professional quality finish"""
     
     result = fal.run(
         "fal-ai/fast-sdxl",
         arguments={
             "prompt": prompt_text,
-            "negative_prompt": "text, watermark, blurry",
-            "image_size": {"width": 1280, "height": 720}
+            "negative_prompt": "text, watermark, blurry, low quality, distorted, amateur, poorly lit",
+            "image_size": {"width": 1080, "height": 1920}
         }
     )
     return {"thumbnail_url": result["images"][0]["url"]}
@@ -157,7 +190,7 @@ def generate_audio(state: AgentState):
     full_text = " ".join([seg["text"] for seg in state["script"]["videoScript"]])
     response = client.text_to_speech.convert_with_timestamps(
         text=full_text,
-        voice_id="pNInz6obpgDQGcFmaJgB",  # Adam voice
+        voice_id="cgSgspJ2msm6clMCkdW9",  # Adam voice
         model_id="eleven_turbo_v2_5",  # Turbo model for low latency
         output_format="mp3_44100_128",
         voice_settings=VoiceSettings(
@@ -201,7 +234,7 @@ def generate_images(state: AgentState):
         
         Original segments: {segments}
         
-        Format the response exactly as:
+        Format the response exactly as(The output response should be exactly like this):
         {{
             "videoScript": [
                 {{
@@ -226,9 +259,16 @@ def generate_images(state: AgentState):
         image_result = fal.run(
             "fal-ai/fast-sdxl",
             arguments={
-                "prompt": f"Video scene: {segment['text']}. Dynamic composition, vivid colors.",
-                "negative_prompt": "text, watermark",
-                "image_size": {"width": 1280, "height": 720}
+                "prompt": f"""Video scene for YouTube Shorts: {segment['text']}
+                Style requirements:
+                - Vertical cinematic composition
+                - Professional lighting with dramatic contrast
+                - Vibrant, eye-catching colors
+                - Clean, uncluttered background
+                - Modern and trendy aesthetic
+                - Emotionally engaging visuals""",
+                "negative_prompt": "text, watermark, blurry, low quality, distorted, amateur, poorly lit, busy background",
+                "image_size": {"width": 1080, "height": 1920}
             }
         )
         
@@ -330,7 +370,7 @@ def create_video(state: AgentState):
                 
                 # Create clip from saved image
                 clip = (ImageClip(temp_file)
-                       .resized((1280, 720))
+                       .resized((1080, 1920))
                        .with_start(start_time)
                        .with_duration(duration))
                 clips.append(clip)
@@ -371,9 +411,11 @@ def create_video(state: AgentState):
                     font=font_path,
                     font_size=40,
                     color='white',
-                    size=(1280, 720),
+                    size=(1080, 1920),
                     method='caption',
-                ).with_position(('center', 'bottom')).with_duration(duration)
+                ).with_position(('bottom')).with_duration(duration)
+
+                # text_clip = text_clip.with_position(('center', 'bottom'))
                 
                 # Only apply timing
                 text_clip = text_clip.with_start(start_time).with_duration(duration)
@@ -390,7 +432,7 @@ def create_video(state: AgentState):
             all_clips = clips + text_clips
             
             # Create composite and properly set audio
-            video = CompositeVideoClip(all_clips, size=(1280, 720))
+            video = CompositeVideoClip(all_clips, size=(1080, 1920))
             
             # Ensure video duration matches audio
             video = video.with_duration(audio.duration)
