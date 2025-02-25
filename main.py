@@ -330,6 +330,8 @@ def get_system_font():
 
 def create_video(state: AgentState):
     print("Creating final video...")
+    print("State from create_video node: ", state)
+    
     clips = []
     temp_image_files = []
     

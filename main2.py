@@ -344,6 +344,7 @@ def get_system_font():
 
 def create_video(state: AgentState):
     print("Creating final video...")
+    print("State from create_video node: ", state)
     clips = []
     temp_image_files = []
     
@@ -432,7 +433,7 @@ def create_video(state: AgentState):
                     color='white',
                     size=(1080, 1920),
                     method='caption',
-                ).with_position(('bottom')).with_duration(duration)
+                ).with_position(("center", "bottom")).with_duration(duration)
 
                 # text_clip = text_clip.with_position(('center', 'bottom'))
                 
