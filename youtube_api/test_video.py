@@ -79,7 +79,7 @@ def split_text_into_words(text):
     return [word for word in words if word.strip()]
 
 def create_word_highlight_clips(text, width, duration, start_time, fontsize, font_path):
-    """Create a sequence of clips with word-by-word highlighting without gray background text."""
+    """Create a sequence of clips with word-by-word highlighting with rectangular background."""
     words = split_text_into_words(text)
     
     # Handle empty text case
@@ -89,8 +89,7 @@ def create_word_highlight_clips(text, width, duration, start_time, fontsize, fon
     speed_factor = 1.3  # Lower value means faster highlighting
     time_per_word = (duration * speed_factor) / len(words)
     
-    # Calculate dimensions for our background
-    # We'll create a dummy text clip just to get the dimensions
+    # Calculate dimensions for our text
     dummy_text_clip = TextClip(
         text, 
         fontsize=fontsize, 
@@ -107,16 +106,7 @@ def create_word_highlight_clips(text, width, duration, start_time, fontsize, fon
     bg_width = dummy_text_clip.w + padding_h * 2
     bg_height = dummy_text_clip.h + padding_v * 2
     
-    # Create a black background with transparency
-    # bg_clip = ColorClip(
-    #     size=(bg_width, bg_height), 
-    #     color=(0, 0, 0)
-    # ).set_opacity(0.5)
-    
-    # Set the background to last the entire duration
-    # bg_clip = bg_clip.set_start(start_time).set_duration(duration)
-    
-    highlight_clips = []  # Start with just the background
+    highlight_clips = []
     current_words = []
     
     # Create a series of clips with progressively highlighted words
@@ -144,8 +134,8 @@ def create_word_highlight_clips(text, width, duration, start_time, fontsize, fon
             highlighted_text += highlighted_word
             original_index += len(highlighted_word)
         
-        # Create the highlighted portion text clip (white text only)
-        highlighted_clip = TextClip(
+        # First, create a text clip to get its dimensions
+        text_clip = TextClip(
             highlighted_text, 
             fontsize=fontsize, 
             color='white', 
@@ -153,28 +143,72 @@ def create_word_highlight_clips(text, width, duration, start_time, fontsize, fon
             method='caption',
             align='center',
             size=(width - 80, None)
-        ).set_position(("center", "center"))
+        )
         
-        # Calculate position for this word's clip
+        # Create a background rectangle clip with a bit of padding
+        rect_padding = 10  # Padding around text
+        rect_width = text_clip.w + (rect_padding * 2)
+        rect_height = text_clip.h + (rect_padding * 2)
+        
+        # Create colored rectangle background (semi-transparent blue)
+        rect_clip = ColorClip(
+            size=(rect_width, rect_height),
+            color=(0, 102, 204)  # RGB blue color
+        ).set_opacity(0.7)  # Make it semi-transparent
+        
+        # Position the text over the rectangle
+        text_on_rect = CompositeVideoClip([
+            rect_clip,
+            text_clip.set_position(("center", "center"))
+        ])
+        
+        # Set position for the combined clip (centered horizontally, fixed vertically)
+        positioned_clip = text_on_rect.set_position(("center", "center"))
+        
+        # Calculate timing for this highlight
         word_start_time = start_time + (i * time_per_word)
         word_duration = time_per_word
         
-        # Set timing for the highlighted text
-        word_highlight = highlighted_clip.set_start(word_start_time).set_duration(word_duration)
+        # Set timing for the highlighted text with background
+        word_highlight = positioned_clip.set_start(word_start_time).set_duration(word_duration)
         
         highlight_clips.append(word_highlight)
     
     # Add a final clip that keeps the last highlighted state until the end of the segment
     if current_words:
-        final_highlight = highlighted_clip.set_start(
-            start_time + len(words) * time_per_word
-        ).set_duration(
-            duration - (len(words) * time_per_word)
+        # For the final state, we need to recreate the composite clip
+        final_text_clip = TextClip(
+            highlighted_text, 
+            fontsize=fontsize, 
+            color='white', 
+            font=font_path, 
+            method='caption',
+            align='center',
+            size=(width - 80, None)
         )
-        highlight_clips.append(final_highlight)
+        
+        rect_width = final_text_clip.w + (rect_padding * 2)
+        rect_height = final_text_clip.h + (rect_padding * 2)
+        
+        final_rect_clip = ColorClip(
+            size=(rect_width, rect_height),
+            color=(0, 102, 204)
+        ).set_opacity(0.7)
+        
+        final_composite = CompositeVideoClip([
+            final_rect_clip,
+            final_text_clip.set_position(("center", "center"))
+        ]).set_position(("center", "center"))
+        
+        final_duration = duration - (len(words) * time_per_word)
+        if final_duration > 0:  # Only add if there's time remaining
+            final_highlight = final_composite.set_start(
+                start_time + len(words) * time_per_word
+            ).set_duration(final_duration)
+            
+            highlight_clips.append(final_highlight)
     
     return highlight_clips
-
 
 def create_video(state):
     print("Creating final video using MoviePy with word-by-word highlighting...")
@@ -249,9 +283,16 @@ def create_video(state):
         
         # Add all word highlight clips to overlays
         for clip in word_clips:
-            clip_height = clip.h
-            positioned_clip = clip.set_position(("center", height - clip_height - bottom_margin))
-            overlays.append(positioned_clip)
+            # Check if it's already a CompositeVideoClip (which our new function creates)
+            if isinstance(clip, CompositeVideoClip):
+                clip_height = clip.h
+                positioned_clip = clip.set_position(("center", height - clip_height - bottom_margin))
+                overlays.append(positioned_clip)
+            else:
+                # For compatibility with any existing clips that might not have backgrounds
+                clip_height = clip.h
+                positioned_clip = clip.set_position(("center", height - clip_height - bottom_margin))
+                overlays.append(positioned_clip)
         
         # Note: We're NOT adding the original text overlay here, which fixes the duplication issue
 
