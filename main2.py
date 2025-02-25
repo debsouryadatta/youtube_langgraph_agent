@@ -7,19 +7,23 @@ from typing import TypedDict, List, Annotated
 from dotenv import load_dotenv
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langgraph.graph import END, StateGraph
 from google.cloud import texttospeech
+from elevenlabs.client import ElevenLabs
+from elevenlabs import play, VoiceSettings
 import fal_client as fal
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.video.VideoClip import ImageClip, TextClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-from moviepy.audio.io.AudioFileClip import AudioFileClip
-from moviepy import vfx
+from moviepy.editor import *
 import base64
 from PIL import ImageFont
 import matplotlib.font_manager as fm
+from bs4 import BeautifulSoup
+import re
+import requests
+
+from youtube_api.test_video import create_video_file
 
 load_dotenv()
 
@@ -40,6 +44,10 @@ llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
     api_key=os.getenv("GEMINI_API_KEY"),
 )
+# llm = ChatGroq(
+#     model="deepseek-r1-distill-qwen-32b",
+#     api_key=os.getenv("GROQ_API_KEY"),
+# )
 parser = JsonOutputParser()
 
 # 3. Define Agents
@@ -52,13 +60,13 @@ def research_and_generate_transcript(state: AgentState):
     
     # Generate script
     script_prompt = ChatPromptTemplate.from_template(
-        """Create a compelling 15-second YouTube Shorts script about {topic} using this research:
+        """Create a compelling 30-second YouTube Shorts script about {topic} using this research:
         {research}
         
         Follow these guidelines strictly:
-        1. Hook (0-4s): Start with an attention-grabbing opening line
-        2. Core Content (4-12s): Present key information in short, impactful sentences
-        3. Call-to-Action (12-15s): End with an engaging prompt
+        1. Hook (0-5s): Start with an attention-grabbing opening line
+        2. Core Content (5-25s): Present key information in short, impactful sentences
+        3. Call-to-Action (25-30s): End with an engaging prompt
         
         Each segment MUST:
         - Be written in a conversational, natural speaking style
@@ -80,7 +88,7 @@ def research_and_generate_transcript(state: AgentState):
                 }},
                 ...
             ],
-            "totalDuration": "00:15"
+            "totalDuration": "00:30"
         }}"""
     )
     chain = script_prompt | llm | parser
@@ -244,64 +252,172 @@ def generate_audio(state: AgentState):
 def generate_images(state: AgentState):
     print("Generating images...")
     
-    # Create prompt template for combining segments
-    combine_prompt = ChatPromptTemplate.from_template(
-        """Given the following video script segments, combine them into fewer segments suitable for generating a single image for each segment. 
-Keep all the original text but group them logically while preserving proper timing.
-Each output segment’s duration must be at least 5 seconds and no more than 6 seconds.
-If there are many short, similar segments, group them together; if there are longer segments, split them into parts so that each segment fits within the 5-6 second range.
-Original segments: {segments}
+    # Process script segments programmatically instead of using LLM
+    original_segments = state["script"]["videoScript"]
+    total_duration_str = state["script"]["totalDuration"]
+    
+    # Convert the total duration to seconds
+    total_duration_seconds = timestamp_to_seconds(total_duration_str)
+    
+    # Combine all text from original segments
+    all_text = " ".join([segment["text"] for segment in original_segments])
+    
+    # Calculate how many 4-second segments we need
+    segment_duration = 4  # seconds
+    num_segments = max(1, int(total_duration_seconds / segment_duration))
+    
+    # Calculate characters per segment based on total text length divided by number of segments
+    chars_per_segment = max(1, len(all_text) // num_segments)
+    
+    # Create new segments
+    new_segments = []
+    start_time = 0
+    
+    for i in range(num_segments):
+        # For the last segment, use all remaining text
+        if i == num_segments - 1:
+            segment_text = all_text[i * chars_per_segment:]
+            segment_duration = total_duration_seconds - start_time
+        else:
+            segment_text = all_text[i * chars_per_segment:(i + 1) * chars_per_segment]
+            segment_duration = 4  # fixed 4 seconds per segment
+        
+        # Format times as MM:SS
+        start_str = f"{int(start_time // 60):02d}:{int(start_time % 60):02d}"
+        duration_str = f"{int(segment_duration // 60):02d}:{int(segment_duration % 60):02d}"
+        
+        new_segments.append({
+            "start": start_str,
+            "duration": duration_str,
+            "text": segment_text.strip()
+        })
+        
+        start_time += segment_duration
+    
+    # Create result with the same structure as expected from the LLM
+    result = {
+        "videoScript": new_segments,
+        "totalDuration": total_duration_str
+    }
+    
+        # Create Google image search function
+    def fetch_image_urls(query, num_images=1):
+        # Prepare keywords for URL encoding
+        query_for_url = query.replace(" ", "+")
+        url = f"https://www.google.com/search?q={query_for_url}&tbm=isch"
+        
+        # Use a common User-Agent header to mimic a real browser
+        headers = {
+            "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/103.0.5060.114 Safari/537.36")
+        }
+        
+        # Fetch the search result page
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"Request failed with status code {response.status_code}")
+            return []
+        
+        # Parse the page using BeautifulSoup
+        soup = BeautifulSoup(response.text, "html.parser")
+        image_urls = []
+        
+        # First approach: look for <img> tags with src containing http
+        for img in soup.find_all("img"):
+            src = img.get("src")
+            if src and src.startswith("http"):
+                image_urls.append(src)
+            if len(image_urls) >= num_images:
+                break
 
-Format the response exactly as:
-{{
-    "videoScript": [
-        {{
-            "start": "MM:SS",
-            "duration": "MM:SS",
-            "text": "Combined text for this segment"
-        }},
-        ...
-    ],
-    "totalDuration": "MM:SS"
-}}
-"""
+        # Fallback: use regex to extract jpg URLs from the raw HTML if not enough URLs found
+        if len(image_urls) < num_images:
+            regex_urls = re.findall(r'["\'](https?://[^"\']+?\.jpg)["\']', response.text)
+            for url in regex_urls:
+                if url not in image_urls:
+                    image_urls.append(url)
+                if len(image_urls) >= num_images:
+                    break
+        return image_urls[:num_images]
+    
+    
+    # Ensure output directory exists
+    os.makedirs("output/images", exist_ok=True)
+    
+    # Rest of the function remains the same as before
+    search_prompt = ChatPromptTemplate.from_template(
+        """Create a short and focused image search query based on this video segment text and the topic of the video.
+        The query should directly relate to the core topic being discussed.
+        
+        Video segment text: {segment_text}
+        Video topic: {topic}
+        
+        Create a search query that:
+        1. Uses 3-5 key words
+        2. Focuses on the main subject
+        3. Describes a clear, relevant visual
+        
+        Return only the search query text with no additional formatting."""
     )
     
-    # Create chain for combining segments
-    combine_chain = combine_prompt | llm | parser
-    
-    # Get optimized script with combined segments
-    result = combine_chain.invoke({"segments": state["script"]["videoScript"]})
+    # Create chain for search term generation
+    search_chain = search_prompt | llm | StrOutputParser()
     
     images_manifest = []
-    for segment in result["videoScript"]:
-        image_result = fal.run(
-            "fal-ai/fast-sdxl",
-            arguments={
-                "prompt": f"""Video scene for YouTube Shorts: {segment['text']}
-                Style requirements:
-                - Vertical cinematic composition
-                - Professional lighting with dramatic contrast
-                - Vibrant, eye-catching colors
-                - Clean, uncluttered background
-                - Modern and trendy aesthetic
-                - Emotionally engaging visuals""",
-                "negative_prompt": "text, watermark, blurry, low quality, distorted, amateur, poorly lit, busy background",
-                "image_size": {"width": 1080, "height": 1920}
-            }
-        )
+    for i, segment in enumerate(result["videoScript"]):
+        # Generate search term for this segment
+        search_term = search_chain.invoke({"segment_text": segment['text'], "topic": state["topic"]})
+        search_term = search_term.strip() + " vertical high quality"
+        print(f"Generated search term: {search_term}")
         
-        images_manifest.append({
-            "start": segment["start"],
-            "duration": segment["duration"],
-            "text": segment["text"],
-            "url": image_result["images"][0]["url"]
-        })
-        print(f"Generated image for combined segment starting at {segment['start']}")
+        # Fetch image URLs
+        image_urls = fetch_image_urls(search_term)
+        
+        if not image_urls:
+            print(f"No images found for segment {i+1}, trying alternative search...")
+            # Try a more generic search if specific one fails
+            fallback_search = search_chain.invoke({"segment_text": "professional high quality " + segment['text'][:30]})
+            image_urls = fetch_image_urls(fallback_search + " vertical")
+        
+        if image_urls:
+            # Download the image
+            image_path = f"output/images/segment_{i+1}.jpg"
+            try:
+                response = requests.get(image_urls[0], timeout=10)
+                response.raise_for_status()
+                
+                with open(image_path, "wb") as f:
+                    f.write(response.content)
+                print(f"Downloaded image for segment {i+1} to {image_path}")
+                
+                images_manifest.append({
+                    "start": segment["start"],
+                    "duration": segment["duration"],
+                    "text": segment["text"],
+                    "url": image_path  # Store local path instead of URL
+                })
+            except Exception as e:
+                print(f"Failed to download image for segment {i+1}: {str(e)}")
+                # Use a placeholder or fallback image
+                images_manifest.append({
+                    "start": segment["start"],
+                    "duration": segment["duration"],
+                    "text": segment["text"],
+                    "url": "output/images/placeholder.jpg"  # Default placeholder
+                })
+        else:
+            print(f"No images found for segment {i+1}, using placeholder")
+            # Use placeholder
+            images_manifest.append({
+                "start": segment["start"],
+                "duration": segment["duration"],
+                "text": segment["text"],
+                "url": "output/images/placeholder.jpg"
+            })
     
-    print("Images manifest:", images_manifest, "Modified Script:", result)
+    print("Images manifest:", images_manifest)
     return {"images_manifest": images_manifest, "script": result}
-
 def timestamp_to_seconds(timestamp: str) -> float:
     """Convert a timestamp string (HH:MM:SS or MM:SS) to seconds."""
     parts = timestamp.split(":")
@@ -343,178 +459,25 @@ def get_system_font():
     raise ValueError("No suitable font found on the system")
 
 def create_video(state: AgentState):
-    print("Creating final video...")
-    print("State from create_video node: ", state)
-    clips = []
-    temp_image_files = []
-    
-    # Get system font path
     try:
-        font_path = get_system_font()
-        print(f"Using font: {font_path}")
-    except Exception as e:
-        print(f"Warning: Font selection failed: {e}")
-        raise ValueError("Could not find a suitable system font")
-    
-    if not state.get("audio_path"):
-        raise ValueError("audio_path is required in state")
-    if not state.get("images_manifest"):
-        raise ValueError("images_manifest is required in state")
-    if not state.get("script", {}).get("videoScript"):
-        raise ValueError("script.videoScript is required in state")
-    
-    try:
-        # Download assets
-        audio = AudioFileClip(state["audio_path"])
-        
-        # Download and save images temporarily
-        for img in state["images_manifest"]:
-            if not img.get("url") or not img.get("start") or not img.get("duration"):
-                raise ValueError(f"Invalid image manifest entry: {img}")
-                
-            response = requests.get(img["url"], stream=True, timeout=10)
-            response.raise_for_status()
-            
-            # Create a temporary file with .jpg extension
-            temp_file = f"output/temp_img_{len(temp_image_files)}.jpg"
-            temp_image_files.append(temp_file)
-            
-            # Save the image data
-            with open(temp_file, "wb") as f:
-                f.write(response.content)
-            
-            try:
-                # Convert timestamp strings to seconds
-                start_time = timestamp_to_seconds(img["start"])
-                duration = timestamp_to_seconds(img["duration"])
-                
-                # Create clip from saved image
-                clip = (ImageClip(temp_file)
-                       .resized((1080, 1920))
-                       .with_start(start_time)
-                       .with_duration(duration))
-                clips.append(clip)
-            except Exception as e:
-                raise ValueError(f"Failed to create clip from image {img['url']}: {str(e)}")
-        
-        if not clips:
-            raise ValueError("No valid clips were created from the images")
-            
-        # Fix crossfading between image clips
-        if len(clips) > 1:
-            final_clips = []
-            for i in range(len(clips)):
-                current_clip = clips[i]
-                effects = []
-                if i > 0:  # Add fade in for all clips except first
-                    effects.append(vfx.FadeIn(0.5))
-                if i < len(clips) - 1:  # Add fade out for all clips except last
-                    effects.append(vfx.FadeOut(0.5))
-                if effects:
-                    current_clip = current_clip.with_effects(effects)
-                final_clips.append(current_clip)
-            clips = final_clips
-        
-        # Create text overlays
-        text_clips = []
-        for seg in state["script"]["videoScript"]:
-            if not seg.get("text") or not seg.get("start") or not seg.get("duration"):
-                raise ValueError(f"Invalid script segment: {seg}")
-                
-            try:
-                start_time = timestamp_to_seconds(seg["start"])
-                duration = timestamp_to_seconds(seg["duration"])
-                
-                # Create text clip with position included in initialization
-                text_clip = TextClip(
-                    text=seg["text"],
-                    font=font_path,
-                    font_size=40,
-                    color='white',
-                    size=(1080, 1920),
-                    method='caption',
-                ).with_position(("center", "bottom")).with_duration(duration)
-
-                # text_clip = text_clip.with_position(('center', 'bottom'))
-                
-                # Only apply timing
-                text_clip = text_clip.with_start(start_time).with_duration(duration)
-                
-                text_clips.append(text_clip)
-            except Exception as e:
-                raise ValueError(f"Failed to create text clip for segment: {seg['text']}: {str(e)}")
-        
-        if not text_clips:
-            raise ValueError("No valid text clips were created")
-            
-        # Fix video composition with audio
-        try:
-            all_clips = clips + text_clips
-            
-            # Create composite and properly set audio
-            video = CompositeVideoClip(all_clips, size=(1080, 1920))
-            
-            # Ensure video duration matches audio
-            video = video.with_duration(audio.duration)
-            
-            # Create final video with audio
-            final_video = video.with_audio(audio)
-            
-            output_path = f"output/video_output_{datetime.now().timestamp()}.mp4"
-            
-            # Write with explicit audio parameters
-            final_video.write_videofile(
-                output_path,
-                fps=24,
-                codec="libx264",
-                audio_codec="aac",
-                audio=True,  # Ensure audio is included
-                threads=4,
-                preset='medium'
-            )
-            
-            return {"final_video_path": output_path}
-            
-        except Exception as e:
-            raise ValueError(f"Failed to compose final video: {str(e)}")
-            
-    finally:
-        # Clean up temporary files
-        for temp_file in temp_image_files:
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-            except Exception as e:
-                print(f"Warning: Failed to remove temporary file {temp_file}: {e}")
-                
-        # Clean up MoviePy clips
-        try:
-            if 'final_video' in locals():
-                final_video.close()
-            if 'video' in locals():
-                video.close()
-            audio.close()
-            for clip in clips:
-                clip.close()
-            for clip in text_clips:
-                clip.close()
-        except Exception as e:
-            print(f"Warning: Failed to clean up some MoviePy clips: {e}")
+        result = create_video_file(state)
+        print(f"Video created successfully: {result}")
+        return {"final_video_path": result["final_video_path"]}
+    except Exception as err:
+        print(f"Failed to create video: {err}")
 
 # 4. Build Workflow
 workflow = StateGraph(AgentState)
 
 workflow.add_node("research_transcript", research_and_generate_transcript)
 workflow.add_node("title_description", generate_title_description)
-workflow.add_node("generate_thumbnail", generate_thumbnail)
 workflow.add_node("generate_audio", generate_audio)
 workflow.add_node("generate_images", generate_images)
 workflow.add_node("create_video", create_video)
 
 workflow.set_entry_point("research_transcript")
 workflow.add_edge("research_transcript", "title_description")
-workflow.add_edge("title_description", "generate_thumbnail")
-workflow.add_edge("generate_thumbnail", "generate_audio")
+workflow.add_edge("title_description", "generate_audio")
 workflow.add_edge("generate_audio", "generate_images")
 workflow.add_edge("generate_images", "create_video")
 workflow.add_edge("create_video", END)
@@ -525,6 +488,10 @@ app = workflow.compile()
 if __name__ == "__main__":
     result = app.invoke({
         # "topic": "Top 3 AI Tools for Content Creation"
-        "topic": "Short moral of a story"
+        "topic": "new claude 3.7 sonnet release by anthropic"
     })
-    print(f"Final video created at: {result['final_video_path']}")
+    # print(f"Final video created at: {result['final_video_path']}")
+
+
+
+# Using: 1. audio with google text to speech, 2. images from google search

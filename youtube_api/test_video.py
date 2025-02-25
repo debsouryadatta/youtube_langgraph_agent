@@ -1,8 +1,6 @@
 import os
-import requests
-from datetime import datetime
-from io import BytesIO
 import numpy as np
+from datetime import datetime
 from moviepy.editor import (
     ColorClip, ImageClip, TextClip, CompositeVideoClip, AudioFileClip
 )
@@ -86,7 +84,7 @@ def create_word_highlight_clips(text, width, duration, start_time, fontsize, fon
     if len(words) == 0:
         return []
     
-    speed_factor = 1.3  # Lower value means faster highlighting
+    speed_factor = 1.1  # Lower value means faster highlighting
     time_per_word = (duration * speed_factor) / len(words)
     
     # Calculate dimensions for our text
@@ -210,8 +208,9 @@ def create_word_highlight_clips(text, width, duration, start_time, fontsize, fon
     
     return highlight_clips
 
-def create_video(state):
+def create_video_file(state):
     print("Creating final video using MoviePy with word-by-word highlighting...")
+    print(f"State: {state}")
     
     # Validate required keys in state
     if not state.get("audio_path"):
@@ -234,7 +233,7 @@ def create_video(state):
     # Calculate extension time for images (25% longer than specified in the manifest)
     extend_factor = 1.25
     
-    # Process each image overlay with extended duration
+    # Process each image overlay with extended duration - using local paths now
     for img_entry in state["images_manifest"]:
         if not img_entry.get("url") or not img_entry.get("start") or not img_entry.get("duration"):
             raise ValueError(f"Invalid image manifest entry: {img_entry}")
@@ -244,10 +243,15 @@ def create_video(state):
         # Extend duration by the factor but ensure it doesn't exceed video length
         extended_duration = min(original_duration * extend_factor, video_duration - start_time)
         
-        response = requests.get(img_entry["url"], stream=True, timeout=10)
-        response.raise_for_status()
-        image_bytes = response.content
-        pil_img = Image.open(BytesIO(image_bytes)).convert("RGB")
+        # Use the local file path directly instead of downloading
+        image_path = img_entry["url"]
+        
+        # Check if the image file exists
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file not found at path: {image_path}")
+        
+        # Open the image from the local path
+        pil_img = Image.open(image_path).convert("RGB")
         # Resize image to fill the frame
         pil_img = pil_img.resize((width, height))
         np_img = np.array(pil_img)
@@ -293,8 +297,6 @@ def create_video(state):
                 clip_height = clip.h
                 positioned_clip = clip.set_position(("center", height - clip_height - bottom_margin))
                 overlays.append(positioned_clip)
-        
-        # Note: We're NOT adding the original text overlay here, which fixes the duplication issue
 
     # Composite all clips together
     composite = CompositeVideoClip(overlays, size=(width, height))
@@ -320,51 +322,10 @@ def create_video(state):
 
 if __name__ == "__main__":
     # Example state dictionary similar to previous examples
-    state = {
-        'topic': 'Short moral of a story',
-        'script': {
-            'videoScript': [
-                {'start': '00:00', 'duration': '00:06', 'text': "Hey! Ever wonder if you're missing something HUGE? I just learned... sometimes the truth... the REAL wisdom... is hiding where you least expect it!"},
-                {'start': '00:09', 'duration': '00:05', 'text': 'Wow! Like... are you giving up too easily on something you really want?'},
-                {'start': '00:15', 'duration': '00:05', 'text': "Maybe... just maybe... you're more capable than you think! This is incredible!"},
-                {'start': '00:20', 'duration': '00:08', 'text': "Don't underestimate yourself! So... what's one thing you're going to try again? Tell me in the comments!"}
-            ],
-            'totalDuration': '00:28'
-        },
-        'title': 'Unlock Your Hidden Potential! #Motivation #Shorts',
-        'description': "Feeling stuck? The REAL truth is closer than you think! Don't give up! What will YOU try again?",
-        'thumbnail_url': 'https://v3.fal.media/files/panda/cLhuvDd5NgGNaZgXZj5n5.jpeg',
-        'audio_path': 'output/audio_1740480945.814656.mp3',
-        'images_manifest': [
-            {
-                'start': '00:00',
-                'duration': '00:06',
-                'text': "Hey! Ever wonder if you're missing something HUGE? I just learned... sometimes the truth... the REAL wisdom... is hiding where you least expect it!",
-                'url': 'https://v3.fal.media/files/koala/oxucnLRjA4cGQnBfHuLqW.jpeg'
-            },
-            {
-                'start': '00:09',
-                'duration': '00:05',
-                'text': 'Wow! Like... are you giving up too easily on something you really want?',
-                'url': 'https://v3.fal.media/files/rabbit/EwladKSCZWhXjCyHHfAAW.jpeg'
-            },
-            {
-                'start': '00:15',
-                'duration': '00:05',
-                'text': "Maybe... just maybe... you're more capable than you think! This is incredible!",
-                'url': 'https://v3.fal.media/files/rabbit/l4QvhOX0U48rlObpTKa_t.jpeg'
-            },
-            {
-                'start': '00:20',
-                'duration': '00:08',
-                'text': "Don't underestimate yourself! So... what's one thing you're going to try again? Tell me in the comments!",
-                'url': 'https://v3.fal.media/files/tiger/CNiene9lrK7QXkNoAvJYs.jpeg'
-            }
-        ]
-    }
+    state = {'topic': 'Short moral of a story', 'script': {'videoScript': [{'start': '00:00', 'duration': '00:05', 'text': 'Hey! Ever heard a story that just sticks with you? Well get this...'}, {'start': '00:05', 'duration': '00:05', 'text': 'Truth and wisdom? ... Found where you LEAST expect it! Wow!'}, {'start': '00:10', 'duration': '00:06', 'text': 'Moral of the story? ... Look everywhere... even the uncomfortable places!'}, {'start': '00:16', 'duration': '00:06', 'text': "I'm so excited! What's a story that changed YOUR perspective?"}], 'totalDuration': '00:22'}, 'title': 'Uncover Truth! Unexpected Wisdom🤯 #shorts #wisdom #truth', 'description': "🤯Truth in unexpected places! You won't believe it! What story changed YOU? Share below! 👇 #storytime #mindblown #perspective", 'thumbnail_url': 'https://v3.fal.media/files/monkey/-Cw463xzRZ8rZkPml0fPJ.jpeg', 'audio_path': 'output/audio_1740506364.321846.mp3', 'images_manifest': [{'start': '00:00', 'duration': '00:05', 'text': 'Hey! Ever heard a story that just sticks with you? Well get this...', 'url': 'output/images/segment_1.jpg'}, {'start': '00:05', 'duration': '00:05', 'text': 'Truth and wisdom? ... Found where you LEAST expect it! Wow!', 'url': 'output/images/segment_2.jpg'}, {'start': '00:10', 'duration': '00:06', 'text': 'Moral of the story? ... Look everywhere... even the uncomfortable places!', 'url': 'output/images/segment_3.jpg'}, {'start': '00:16', 'duration': '00:06', 'text': "I'm so excited! What's a story that changed YOUR perspective?", 'url': 'output/images/segment_4.jpg'}]}
     
     try:
-        result = create_video(state)
+        result = create_video_file(state)
         print(f"Video created successfully: {result}")
     except Exception as err:
         print(f"Failed to create video: {err}")
