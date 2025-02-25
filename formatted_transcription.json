@@ -1,0 +1,30 @@
+{
+    "videoScript": [
+        {
+            "start": "00:00",
+            "duration": "00:03",
+            "text": "Whoa, OpenAI has some serious competition."
+        },
+        {
+            "start": "00:04",
+            "duration": "00:05",
+            "text": "It's DeepSeek AI, a challenger from China. DeepSeek's models are incredibly powerful"
+        },
+        {
+            "start": "00:09",
+            "duration": "00:06",
+            "text": "and get this, more affordable. They even beat OpenAI in some reasoning tests. Can you believe it?"
+        },
+        {
+            "start": "00:16",
+            "duration": "00:05",
+            "text": "Plus, DeepSeek is focused on explainable AI and data privacy. That's amazing."
+        },
+        {
+            "start": "00:22",
+            "duration": "00:06",
+            "text": "So are you team OpenAI or are you ready to DeepSeek? Let me know in the comments."
+        }
+    ],
+    "totalDuration": "00:28"
+}

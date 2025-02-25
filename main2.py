@@ -23,7 +23,8 @@ from bs4 import BeautifulSoup
 import re
 import requests
 
-from youtube_api.test_video import create_video_file
+from lib.audio_stt import process_transcription
+from lib.test_video import create_video_file
 
 load_dotenv()
 
@@ -236,16 +237,17 @@ def generate_audio(state: AgentState):
     with AudioFileClip(audio_path) as audio:
         duration = audio.duration
     
-    formatted_transcript = {
-        "videoScript": [
-            {
-                "start": "00:00",
-                "duration": f"{int(duration // 60):02d}:{int(duration % 60):02d}",
-                "text": full_text
-            }
-        ],
-        "totalDuration": f"{int(duration // 60):02d}:{int(duration % 60):02d}"
-    }
+    # formatted_transcript = {
+    #     "videoScript": [
+    #         {
+    #             "start": "00:00",
+    #             "duration": f"{int(duration // 60):02d}:{int(duration % 60):02d}",
+    #             "text": full_text
+    #         }
+    #     ],
+    #     "totalDuration": f"{int(duration // 60):02d}:{int(duration % 60):02d}"
+    # }
+    formatted_transcript = process_transcription(audio_path=audio_path)
     
     return {"audio_path": audio_path, "script": formatted_transcript}
 
@@ -365,7 +367,7 @@ def generate_images(state: AgentState):
     search_chain = search_prompt | llm | StrOutputParser()
     
     images_manifest = []
-    for i, segment in enumerate(result["videoScript"]):
+    for i, segment in enumerate(state["script"]["videoScript"]):
         # Generate search term for this segment
         search_term = search_chain.invoke({"segment_text": segment['text'], "topic": state["topic"]})
         search_term = search_term.strip() + " vertical high quality"
@@ -417,7 +419,7 @@ def generate_images(state: AgentState):
             })
     
     print("Images manifest:", images_manifest)
-    return {"images_manifest": images_manifest, "script": result}
+    return {"images_manifest": images_manifest}
 def timestamp_to_seconds(timestamp: str) -> float:
     """Convert a timestamp string (HH:MM:SS or MM:SS) to seconds."""
     parts = timestamp.split(":")
