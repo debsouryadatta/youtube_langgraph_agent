@@ -8,6 +8,7 @@ from moviepy.editor import (
 )
 from PIL import Image
 import matplotlib.font_manager as fm
+import re
 
 def timestamp_to_seconds(timestamp: str) -> float:
     parts = timestamp.split(":")
@@ -70,42 +71,113 @@ def get_system_font(bold=False) -> str:
     
     raise ValueError("No suitable font found on the system")
 
-def create_text_background(text, width, fontsize, font_path):
-    """Create a semi-transparent background for text with proper padding."""
-    # Add line breaks to ensure better text wrapping
-    # This is an alternative to using line_spacing parameter
-    wrapped_text = text
+def split_text_into_words(text):
+    """Split text into words while preserving punctuation."""
+    # This pattern keeps punctuation attached to words
+    words = re.findall(r'\b[\w\']+\b|[.,!?;:…]', text)
+    # Filter out empty strings
+    return [word for word in words if word.strip()]
+
+def create_word_highlight_clips(text, width, duration, start_time, fontsize, font_path):
+    """Create a sequence of clips with word-by-word highlighting without gray background text."""
+    words = split_text_into_words(text)
     
-    text_clip = TextClip(
-        wrapped_text, 
+    # Handle empty text case
+    if len(words) == 0:
+        return []
+    
+    speed_factor = 1.3  # Lower value means faster highlighting
+    time_per_word = (duration * speed_factor) / len(words)
+    
+    # Calculate dimensions for our background
+    # We'll create a dummy text clip just to get the dimensions
+    dummy_text_clip = TextClip(
+        text, 
         fontsize=fontsize, 
         color='white', 
         font=font_path, 
         method='caption',
         align='center',
-        size=(width - 80, None)  # Add horizontal padding by reducing width
+        size=(width - 80, None)
     )
     
     # Create a background with padding
-    padding_v = 40  # Vertical padding (top and bottom)
-    padding_h = 40  # Horizontal padding (left and right)
-    bg_width = text_clip.w + padding_h * 2
-    bg_height = text_clip.h + padding_v * 2
+    padding_v = 40  # Vertical padding
+    padding_h = 40  # Horizontal padding
+    bg_width = dummy_text_clip.w + padding_h * 2
+    bg_height = dummy_text_clip.h + padding_v * 2
     
-    # Create a black background with increased transparency (0.5 instead of 0.7)
-    bg_clip = ColorClip(
-        size=(bg_width, bg_height), 
-        color=(0, 0, 0)
-    ).set_opacity(0.5)  # Increased transparency from 0.7 to 0.5
+    # Create a black background with transparency
+    # bg_clip = ColorClip(
+    #     size=(bg_width, bg_height), 
+    #     color=(0, 0, 0)
+    # ).set_opacity(0.5)
     
-    # Position text in the center of background
-    text_centered = text_clip.set_position(("center", "center"))
+    # Set the background to last the entire duration
+    # bg_clip = bg_clip.set_start(start_time).set_duration(duration)
     
-    # Combine background and text
-    return CompositeVideoClip([bg_clip, text_centered])
+    highlight_clips = []  # Start with just the background
+    current_words = []
+    
+    # Create a series of clips with progressively highlighted words
+    for i, word in enumerate(words):
+        current_words.append(word)
+        
+        # Join words with appropriate spacing
+        highlighted_text = ""
+        original_index = 0
+        
+        for j, highlighted_word in enumerate(current_words):
+            # Find the actual position of this word in the original text
+            if j == 0:
+                highlighted_index = text.find(highlighted_word, original_index)
+                original_index = highlighted_index
+            else:
+                # For subsequent words, start search from after previous word
+                highlighted_index = text.find(highlighted_word, original_index)
+                original_index = highlighted_index
+            
+            # If not the first word and there's space before it in the original text
+            if j > 0 and highlighted_index > 0 and text[highlighted_index-1].isspace():
+                highlighted_text += " "
+            
+            highlighted_text += highlighted_word
+            original_index += len(highlighted_word)
+        
+        # Create the highlighted portion text clip (white text only)
+        highlighted_clip = TextClip(
+            highlighted_text, 
+            fontsize=fontsize, 
+            color='white', 
+            font=font_path, 
+            method='caption',
+            align='center',
+            size=(width - 80, None)
+        ).set_position(("center", "center"))
+        
+        # Calculate position for this word's clip
+        word_start_time = start_time + (i * time_per_word)
+        word_duration = time_per_word
+        
+        # Set timing for the highlighted text
+        word_highlight = highlighted_clip.set_start(word_start_time).set_duration(word_duration)
+        
+        highlight_clips.append(word_highlight)
+    
+    # Add a final clip that keeps the last highlighted state until the end of the segment
+    if current_words:
+        final_highlight = highlighted_clip.set_start(
+            start_time + len(words) * time_per_word
+        ).set_duration(
+            duration - (len(words) * time_per_word)
+        )
+        highlight_clips.append(final_highlight)
+    
+    return highlight_clips
+
 
 def create_video(state):
-    print("Creating final video using MoviePy...")
+    print("Creating final video using MoviePy with word-by-word highlighting...")
     
     # Validate required keys in state
     if not state.get("audio_path"):
@@ -150,28 +222,38 @@ def create_video(state):
         image_clip = ImageClip(np_img).set_start(start_time).set_duration(extended_duration)
         overlays.append(image_clip)
 
-    # Process text overlays
+    # Process text overlays with word-by-word highlighting
+    font_path = get_system_font(bold=True)
+    fontsize = 60  # Larger font size for better readability
+    
     for seg in state["script"]["videoScript"]:
         if not seg.get("text") or not seg.get("start") or not seg.get("duration"):
             raise ValueError(f"Invalid script segment: {seg}")
+        
         start_time = timestamp_to_seconds(seg["start"])
         duration = timestamp_to_seconds(seg["duration"])
         text = seg["text"]
         
-        # Get bold font for text
-        font_path = get_system_font(bold=True)
-        fontsize = 60  # Larger font size for better readability
+        # Create word-by-word highlight clips
+        word_clips = create_word_highlight_clips(
+            text=text,
+            width=width,
+            duration=duration,
+            start_time=start_time,
+            fontsize=fontsize,
+            font_path=font_path
+        )
         
-        # Create text with more transparent background
-        text_bg_clip = create_text_background(text, width, fontsize, font_path)
-        
-        # Position text at the bottom with proper margin
+        # Position each clip at the bottom of the screen
         bottom_margin = 100  # Margin from the bottom in pixels
-        text_position = ("center", height - text_bg_clip.h - bottom_margin)
         
-        # Add text clip to overlays with no fade in/out effects
-        text_with_bg = text_bg_clip.set_position(text_position).set_start(start_time).set_duration(duration)
-        overlays.append(text_with_bg)
+        # Add all word highlight clips to overlays
+        for clip in word_clips:
+            clip_height = clip.h
+            positioned_clip = clip.set_position(("center", height - clip_height - bottom_margin))
+            overlays.append(positioned_clip)
+        
+        # Note: We're NOT adding the original text overlay here, which fixes the duplication issue
 
     # Composite all clips together
     composite = CompositeVideoClip(overlays, size=(width, height))
