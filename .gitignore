@@ -10,4 +10,4 @@ wheels/
 .venv
 .env
 output/
-gcp_key.json
+gcp_tts_key.json

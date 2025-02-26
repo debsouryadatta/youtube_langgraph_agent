@@ -24,7 +24,7 @@ import re
 import requests
 
 from lib.audio_stt import process_transcription
-from lib.test_video import create_video_file
+from lib.create_video import create_video_file
 
 load_dotenv()
 
@@ -196,7 +196,7 @@ def generate_audio(state: AgentState):
     print("Generating audio...")
     
     # Set the path to your service account key file
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcp_key.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcp_tts_key.json"
     
     # Initialize the client
     client = texttospeech.TextToSpeechClient()
