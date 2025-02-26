@@ -41,10 +41,14 @@ def generate_avatar_video(api_key, face_id, audio_file_path, output_file_path):
     response_data = response.json()
     mp4_url = response_data.get("mp4_url")
     print("Response data:", response_data, "\n", "MP4 URL:", mp4_url)
-
+    
     if not mp4_url:
         print("Error: 'mp4_url' not found in the API response.")
         return
+    
+    # Wait longer for the video to be processed
+    print("Waiting for video to be processed...")
+    time.sleep(10)  # Wait 10 seconds instead of 1
 
     # Download the MP4 video from the URL with a browser-like header
     try:
@@ -52,23 +56,51 @@ def generate_avatar_video(api_key, face_id, audio_file_path, output_file_path):
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         }
+        
+        print(f"Attempting to download from URL: {mp4_url}")
         video_response = requests.get(mp4_url, stream=True, headers=headers)
+        video_response.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
 
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+        
         with open(output_file_path, "wb") as video_file:
             for chunk in video_response.iter_content(chunk_size=8192):
                 video_file.write(chunk)
-
+                
         print(f"Avatar video saved successfully to: {output_file_path}")
     except Exception as e:
         print(f"Error downloading or saving the video: {e}")
+        print(f"Attempted URL: {mp4_url}")
+        
+        # If first attempt fails, implement a retry mechanism with progressive delays
+        max_retries = 5
+        retry_delay = 5  # Start with 5 seconds
+        
+        for retry in range(1, max_retries + 1):
+            try:
+                print(f"Retry attempt {retry}/{max_retries} after {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                
+                # Try again
+                video_response = requests.get(mp4_url, stream=True, headers=headers)
+                video_response.raise_for_status()
+                
+                with open(output_file_path, "wb") as video_file:
+                    for chunk in video_response.iter_content(chunk_size=8192):
+                        video_file.write(chunk)
+                        
+                print(f"Avatar video saved successfully on retry {retry} to: {output_file_path}")
+                break  # Exit the retry loop if successful
+            except Exception as retry_error:
+                print(f"Retry {retry} failed: {retry_error}")
+                retry_delay *= 2  # Exponential backoff
 
 if __name__ == "__main__":
     # Replace these values with your actual credentials and file paths
     SIMLI_API_KEY = os.getenv("SIMLI_API_KEY")
     FACE_ID = "ec6f0534-7b63-4a53-9939-c4bff7fd3c3b"
-    AUDIO_FILE_PATH = "output/audio_1740510098.255412.mp3"  # Path to your input audio file
-    OUTPUT_FILE_PATH = "output/output_avatar_video.mp4"     # Path to save the output MP4 file
-
+    AUDIO_FILE_PATH = "output/audio_1740593054.885661.mp3"  # Path to your input audio file
+    OUTPUT_FILE_PATH = "output/output_avatar_video.mp4"  # Path to save the output MP4 file
+    
     generate_avatar_video(SIMLI_API_KEY, FACE_ID, AUDIO_FILE_PATH, OUTPUT_FILE_PATH)
