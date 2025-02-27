@@ -2,29 +2,44 @@
     "videoScript": [
         {
             "start": "00:00",
-            "duration": "00:03",
-            "text": "Whoa, OpenAI has some serious competition."
-        },
-        {
-            "start": "00:04",
-            "duration": "00:05",
-            "text": "It's DeepSeek AI, a challenger from China. DeepSeek's models are incredibly powerful"
-        },
-        {
-            "start": "00:09",
             "duration": "00:06",
-            "text": "and get this, more affordable. They even beat OpenAI in some reasoning tests. Can you believe it?"
+            "text": "Hey tech lovers! Big news dropped! Anthropic just released Claude 3.7 Sonnet."
+        },
+        {
+            "start": "00:06",
+            "duration": "00:01",
+            "text": "Wow, this is incredible!"
+        },
+        {
+            "start": "00:08",
+            "duration": "00:05",
+            "text": "It's their most advanced AI yet, offering near-instant responses and extended thinking."
+        },
+        {
+            "start": "00:14",
+            "duration": "00:02",
+            "text": "Think faster, smarter AI."
         },
         {
             "start": "00:16",
             "duration": "00:05",
-            "text": "Plus, DeepSeek is focused on explainable AI and data privacy. That's amazing."
+            "text": "And get this, they also launched Claude Code, a game-changer for developers."
         },
         {
             "start": "00:22",
-            "duration": "00:06",
-            "text": "So are you team OpenAI or are you ready to DeepSeek? Let me know in the comments."
+            "duration": "00:04",
+            "text": "Coding tasks just got a whole lot easier. I'm so excited to share this."
+        },
+        {
+            "start": "00:26",
+            "duration": "00:05",
+            "text": "It can even write, test and commit code to GitHub Are you ready to level up your coding game?"
+        },
+        {
+            "start": "00:32",
+            "duration": "00:05",
+            "text": "So, what will you build with Cloud 3.7? Let me know in the comments!"
         }
     ],
-    "totalDuration": "00:28"
+    "totalDuration": "00:37"
 }

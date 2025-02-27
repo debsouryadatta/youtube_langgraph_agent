@@ -6,7 +6,10 @@ import time
 
 load_dotenv()
 
-def generate_avatar_video(api_key, face_id, audio_file_path, output_file_path):
+def generate_avatar_video(audio_file_path):
+    api_key = os.getenv("SIMLI_API_KEY")
+    face_id = "ec6f0534-7b63-4a53-9939-c4bff7fd3c3b"
+    output_file_path = "output/output_avatar_video.mp4"
     # Read the audio file and encode it to Base64
     try:
         with open(audio_file_path, "rb") as audio_file:
@@ -98,9 +101,6 @@ def generate_avatar_video(api_key, face_id, audio_file_path, output_file_path):
 
 if __name__ == "__main__":
     # Replace these values with your actual credentials and file paths
-    SIMLI_API_KEY = os.getenv("SIMLI_API_KEY")
-    FACE_ID = "ec6f0534-7b63-4a53-9939-c4bff7fd3c3b"
     AUDIO_FILE_PATH = "output/audio_1740593054.885661.mp3"  # Path to your input audio file
-    OUTPUT_FILE_PATH = "output/output_avatar_video.mp4"  # Path to save the output MP4 file
     
-    generate_avatar_video(SIMLI_API_KEY, FACE_ID, AUDIO_FILE_PATH, OUTPUT_FILE_PATH)
+    generate_avatar_video(AUDIO_FILE_PATH)

@@ -7,7 +7,7 @@
 - [x] Basic Version with google text to speech and google images search
 - [x] Beautify the captions overlay with words coming one after another -> test_video.py
 - [x] Caption syncing with the audio, by getting the exact timestamp of the segments(Putting the texts over the screen according to those timestamps) -> audio_stt.py
-- [ ] Add the avatar api to the video with Simli api
+- [x] Add the avatar api to the video with Simli api
 - [ ] Add a soft background music to the video
 
 
@@ -31,3 +31,5 @@
 - google_images.py -> Fetch the images from google search images with bs4
 - audio_stt.py -> Using groq whisper speech to text to convert the audio into text with timestamps then modifyng the timestamps -> It is done to sync the text overlays with the audio
 - simli_avatar.py -> Get the avatar video from the simli api providing the audio file
+- create_video2.py -> Create video from the text and the video with audio(generated with simli api)
+- create_video3.py -> Create video from the text and the video with audio(generated with simli api) + included google searched images to stick on the top of the video.

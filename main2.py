@@ -25,6 +25,8 @@ import requests
 
 from lib.audio_stt import process_transcription
 from lib.create_video import create_video_file
+from lib.create_video3 import create_video_with_overlays
+from lib.simli_avatar import generate_avatar_video
 
 load_dotenv()
 
@@ -38,6 +40,7 @@ class AgentState(TypedDict):
     audio_path: str
     images_manifest: List[dict]
     final_video_path: str
+    video_path: str
 
 # 2. Initialize Tools and Models
 tavily = TavilySearchResults(max_results=3)
@@ -211,7 +214,7 @@ def generate_audio(state: AgentState):
     voice = texttospeech.VoiceSelectionParams(
         language_code="en-US",
         ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
-        name="en-US-Chirp-HD-F"
+        name="en-US-Chirp-HD-D"
     )
     
     # Set audio configuration
@@ -248,6 +251,7 @@ def generate_audio(state: AgentState):
     #     "totalDuration": f"{int(duration // 60):02d}:{int(duration % 60):02d}"
     # }
     formatted_transcript = process_transcription(audio_path=audio_path)
+    print("Script after STT:", formatted_transcript)
     
     return {"audio_path": audio_path, "script": formatted_transcript}
 
@@ -462,7 +466,10 @@ def get_system_font():
 
 def create_video(state: AgentState):
     try:
-        result = create_video_file(state)
+        avatar_video = generate_avatar_video(state["audio_path"])
+        state["video_path"] = "output/output_avatar_video.mp4"
+        # result = create_video_file(state)
+        result = create_video_with_overlays(state)
         print(f"Video created successfully: {result}")
         return {"final_video_path": result["final_video_path"]}
     except Exception as err:
@@ -490,7 +497,7 @@ app = workflow.compile()
 if __name__ == "__main__":
     result = app.invoke({
         # "topic": "Top 3 AI Tools for Content Creation"
-        "topic": "new claude 3.7 sonnet release by anthropic"
+        "topic": "Rise of Perplexity ai, single handedly challenging the big players"
     })
     # print(f"Final video created at: {result['final_video_path']}")
 

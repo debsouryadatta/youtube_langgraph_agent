@@ -89,7 +89,7 @@ def main():
     client = Groq()
     
     # Specify the path to the audio file
-    filename = "output/audio_1740510098.255412.mp3"  # Replace with your audio file path
+    filename = "output/audio_1740593054.885661.mp3"  # Replace with your audio file path
     
     with open(filename, "rb") as file:
         transcription = client.audio.transcriptions.create(
@@ -102,7 +102,7 @@ def main():
         )
     
     # Process the transcription into the desired format
-    formatted_output = process_transcription(transcription)
+    formatted_output = process_transcription(filename)
     
     # Print the formatted output
     print(json.dumps(formatted_output, indent=4))
