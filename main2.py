@@ -25,7 +25,7 @@ import requests
 
 from lib.audio_stt import process_transcription
 from lib.create_video import create_video_file
-from lib.create_video3 import create_video_with_overlays
+from lib.create_video4 import create_video_with_overlays
 from lib.simli_avatar import generate_avatar_video
 
 load_dotenv()
@@ -212,9 +212,9 @@ def generate_audio(state: AgentState):
     
     # Configure voice parameters
     voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
+        language_code="en-IN",
         ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
-        name="en-US-Chirp-HD-D"
+        name="en-IN-Chirp-HD-F"
     )
     
     # Set audio configuration

@@ -8,7 +8,12 @@
 - [x] Beautify the captions overlay with words coming one after another -> test_video.py
 - [x] Caption syncing with the audio, by getting the exact timestamp of the segments(Putting the texts over the screen according to those timestamps) -> audio_stt.py
 - [x] Add the avatar api to the video with Simli api
-- [ ] Add a soft background music to the video
+- [x] Add a soft background music to the video
+- [ ] Clean up the code and make the overall structure better
+- [ ] Make the prompts better to get more interesting output video
+- [ ] Increase the types of video shorts by tweaking the overall workflow(Suppose we don't want avatar, we want a separate type of video)
+- [ ] Integrate YouTube Api to publish the video directly to the youtube channel
+- [ ] Think for images solution, as google images search might give same images or might have issue in downloading(although we have the placeholder image in place of that)
 
 
 
@@ -33,3 +38,4 @@
 - simli_avatar.py -> Get the avatar video from the simli api providing the audio file
 - create_video2.py -> Create video from the text and the video with audio(generated with simli api)
 - create_video3.py -> Create video from the text and the video with audio(generated with simli api) + included google searched images to stick on the top of the video.
+- create_video4.py -> Create video from the text and the video with audio(generated with simli api) + included google searched images to stick on the top of the video + included the background music to the video
