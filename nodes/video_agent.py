@@ -391,7 +391,7 @@ def create_video_with_overlays(state):
             from moviepy.editor import AudioFileClip
             bg_music = AudioFileClip(state["bg_music_path"])
             
-            # Set the volume to be low (20% of original)
+            # Set the volume to be low (10% of original)
             bg_music = bg_music.volumex(0.1)
             
             # Loop the music if it's shorter than the video
@@ -428,7 +428,7 @@ def create_video_with_overlays(state):
     composite = composite.set_audio(final_audio)
     
     # Write the final video (MoviePy will call ffmpeg internally)
-    output_dir = "output"
+    output_dir = "output/final_videos"
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f"shorts_with_overlays_{datetime.now().timestamp()}.mp4")
     
@@ -449,13 +449,3 @@ def create_video_with_overlays(state):
             pass
     
     return {"final_video_path": output_path}
-
-if __name__ == "__main__":
-    # Example state dictionary
-    state = {'topic': 'Rise of Perplexity ai, single handedly challenging the big players', 'script': {'videoScript': [{'start': '00:00', 'duration': '00:01', 'text': 'Hey! Forget Google!'}, {'start': '00:01', 'duration': '00:06', 'text': "Cuntimate Wizard! There's a new AI search engine in town, it's called Perplexity AI, and it's changing the game, wow!"}, {'start': '00:07', 'duration': '00:06', 'text': 'Instead of just links, you get direct, clear answers, cleaner interface, fewer ads, pouty, sounds amazing right?'}, {'start': '00:14', 'duration': '00:05', 'text': "This is incredible! Perplexity is actually challenging Google's dominance, pouty?"}, {'start': '00:19', 'duration': '00:04', 'text': "I'm so excited to share! Have you tried Perplexity yet? Let me know in the comments!"}], 'totalDuration': '00:23'}, 'title': 'Ditch Google! 🤯 Perplexity AI is HERE!', 'description': 'Forget Google! Perplexity AI gives direct answers! Cleaner & fewer ads! 🚀 Have you tried it? Let me know! 👇 #ai #perplexityai #google #search #aitools', 'audio_path': 'output/audios/audio_1740766762.898797.mp3', 'images_manifest': [{'start': '00:00', 'duration': '00:01', 'text': 'Hey! Forget Google!', 'url': 'output/images/segment_1.jpg'}, {'start': '00:01', 'duration': '00:06', 'text': "Cuntimate Wizard! There's a new AI search engine in town, it's called Perplexity AI, and it's changing the game, wow!", 'url': 'output/images/segment_2.jpg'}, {'start': '00:07', 'duration': '00:06', 'text': 'Instead of just links, you get direct, clear answers, cleaner interface, fewer ads, pouty, sounds amazing right?', 'url': 'output/images/segment_3.jpg'}, {'start': '00:14', 'duration': '00:05', 'text': "This is incredible! Perplexity is actually challenging Google's dominance, pouty?", 'url': 'output/images/placeholder.jpg'}, {'start': '00:19', 'duration': '00:04', 'text': "I'm so excited to share! Have you tried Perplexity yet? Let me know in the comments!", 'url': 'output/images/segment_5.jpg'}], 'avatar_video_path': 'output/output_avatar_video.mp4'}
-    
-    try:
-        result = create_video_with_overlays(state)
-        print(f"YouTube Shorts video with overlays created successfully: {result}")
-    except Exception as err:
-        print(f"Failed to create YouTube Shorts video with overlays: {err}")

@@ -1,7 +1,10 @@
-import os
-import json
+
+from google.cloud import texttospeech
+from datetime import datetime
+from moviepy.editor import *
 from groq import Groq
 from datetime import timedelta
+
 
 def format_time(seconds):
     """Convert seconds to MM:SS format"""
@@ -83,35 +86,64 @@ def process_transcription(audio_path):
     
     return output
 
-# Main execution
-def main():
-    # Initialize the Groq client
-    client = Groq()
-    
-    # Specify the path to the audio file
-    filename = "output/output.mp3"  # Replace with your audio file path
-    
-    with open(filename, "rb") as file:
-        transcription = client.audio.transcriptions.create(
-            file=(filename, file.read()),
-            model="whisper-large-v3-turbo",
-            prompt="Specify context or spelling",
-            response_format="verbose_json",
-            language="en",
-            temperature=0.0
-        )
-    
-    # Process the transcription into the desired format
-    formatted_output = process_transcription(filename)
-    
-    # Print the formatted output
-    print(json.dumps(formatted_output, indent=4))
-    
-    # Optionally, save to a file
-    with open("formatted_transcription.json", "w") as f:
-        json.dump(formatted_output, f, indent=4)
-    
-    print(f"Formatted transcription saved to formatted_transcription.json")
 
-if __name__ == "__main__":
-    main()
+
+def generate_audio(state):
+    print("Generating audio...")
+    
+    # Set the path to your service account key file
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcp_tts_key.json"
+    
+    # Initialize the client
+    client = texttospeech.TextToSpeechClient()
+    
+    # Combine all text segments
+    full_text = " ".join([seg["text"] for seg in state["script"]["videoScript"]])
+    
+    # Set the text input
+    synthesis_input = texttospeech.SynthesisInput(text=full_text)
+    
+    # Configure voice parameters
+    voice = texttospeech.VoiceSelectionParams(
+        language_code="en-US",
+        ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
+        name="en-US-Chirp-HD-F"
+    )
+    
+    # Set audio configuration
+    audio_config = texttospeech.AudioConfig(
+        audio_encoding=texttospeech.AudioEncoding.MP3
+    )
+    
+    # Generate speech
+    response = client.synthesize_speech(
+        input=synthesis_input,
+        voice=voice,
+        audio_config=audio_config
+    )
+    
+    audio_path = f"output/audios/audio_{datetime.now().timestamp()}.mp3"
+    
+    # Save the audio file
+    with open(audio_path, "wb") as out:
+        out.write(response.audio_content)
+        print(f"Audio content written to file: {audio_path}")
+    
+    # Get audio duration
+    with AudioFileClip(audio_path) as audio:
+        duration = audio.duration
+    
+    # formatted_transcript = {
+    #     "videoScript": [
+    #         {
+    #             "start": "00:00",
+    #             "duration": f"{int(duration // 60):02d}:{int(duration % 60):02d}",
+    #             "text": full_text
+    #         }
+    #     ],
+    #     "totalDuration": f"{int(duration // 60):02d}:{int(duration % 60):02d}"
+    # }
+    formatted_transcript = process_transcription(audio_path=audio_path)
+    print("Script after STT:", formatted_transcript)
+    
+    return {"audio_path": audio_path, "script": formatted_transcript}

@@ -1,18 +1,17 @@
+import os
 import requests
 import base64
-import os
-from dotenv import load_dotenv
 import time
+from datetime import datetime
 
-load_dotenv()
-
-def generate_avatar_video(audio_file_path):
+def generate_avatar_video(state):
     api_key = os.getenv("SIMLI_API_KEY")
     face_id = "ba22033f-210a-41e3-b539-c1742f6ffeab"
-    output_file_path = "output/output_avatar_video.mp4"
+    output_file_path = f"output/avatar_videos/avatar_video_{datetime.now().timestamp()}.mp4"
+    # audio_path = f"output/audio_{datetime.now().timestamp()}.mp3"
     # Read the audio file and encode it to Base64
     try:
-        with open(audio_file_path, "rb") as audio_file:
+        with open(state["audio_path"], "rb") as audio_file:
             audio_base64 = base64.b64encode(audio_file.read()).decode("utf-8")
     except Exception as e:
         print(f"Error reading audio file: {e}")
@@ -72,6 +71,7 @@ def generate_avatar_video(audio_file_path):
                 video_file.write(chunk)
                 
         print(f"Avatar video saved successfully to: {output_file_path}")
+        return {"avatar_video_path": output_file_path}
     except Exception as e:
         print(f"Error downloading or saving the video: {e}")
         print(f"Attempted URL: {mp4_url}")
@@ -94,13 +94,8 @@ def generate_avatar_video(audio_file_path):
                         video_file.write(chunk)
                         
                 print(f"Avatar video saved successfully on retry {retry} to: {output_file_path}")
+                return {"avatar_video_path": output_file_path}
                 break  # Exit the retry loop if successful
             except Exception as retry_error:
                 print(f"Retry {retry} failed: {retry_error}")
                 retry_delay *= 2  # Exponential backoff
-
-if __name__ == "__main__":
-    # Replace these values with your actual credentials and file paths
-    AUDIO_FILE_PATH = "output/audio_1740641083.343137.mp3"  # Path to your input audio file
-    
-    generate_avatar_video(AUDIO_FILE_PATH)

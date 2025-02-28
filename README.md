@@ -9,7 +9,7 @@
 - [x] Caption syncing with the audio, by getting the exact timestamp of the segments(Putting the texts over the screen according to those timestamps) -> audio_stt.py
 - [x] Add the avatar api to the video with Simli api
 - [x] Add a soft background music to the video
-- [ ] Clean up the code and make the overall structure better
+- [x] Clean up the code and make the overall structure better
 - [ ] Make the prompts better to get more interesting output video
 - [ ] Increase the types of video shorts by tweaking the overall workflow(Suppose we don't want avatar, we want a separate type of video)
 - [ ] Integrate YouTube Api to publish the video directly to the youtube channel
@@ -25,8 +25,21 @@
 
 ### Which file consists what?
 
-- main.py -> Main langgraph agent code with all the functionalities
-- main2.py -> Main langgraph agent code with using google text to speech and google images
+- main.py -> Main langgraph agent with cleaned up code and better structure
+- main2.py -> Main langgraph agent code with all the functionalities
+
+
+
+**nodes folder:**
+- transcript_agent.py -> Researches about the topic and generates the transcript
+- title_desc_agent.py -> Generates the title and description for the video based on the transcript
+- thumbnail_agent.py -> Generate the thumbnail based on the title and description
+- audio_agent.py -> Generate the audio from the transcript
+- images_agent.py -> Generate the images based on the transcript
+- avatar_video_agent.py -> Generate the avatar video from the audio
+- video_agent.py -> Generate the video from the transcript and avatar video
+
+
 
 **lib folder:**
 - youtube_api1.py -> Fetch the top viewed youtube videos on search query with youtube api
