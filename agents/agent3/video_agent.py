@@ -1,0 +1,451 @@
+import os
+import numpy as np
+from datetime import datetime
+from moviepy.editor import (
+    AudioFileClip, TextClip, CompositeVideoClip, ColorClip, ImageClip,
+    concatenate_audioclips, CompositeAudioClip
+)
+import matplotlib.font_manager as fm
+import re
+import random
+
+def timestamp_to_seconds(timestamp: str) -> float:
+    """Convert a timestamp string (HH:MM:SS or MM:SS) to seconds."""
+    parts = timestamp.split(":")
+    if len(parts) == 2:  # MM:SS format
+        minutes, seconds = parts
+        return float(minutes) * 60 + float(seconds)
+    elif len(parts) == 3:  # HH:MM:SS format
+        hours, minutes, seconds = parts
+        return float(hours) * 3600 + float(minutes) * 60 + float(seconds)
+    else:
+        try:
+            return float(timestamp)  # Try direct conversion if it's already a number
+        except ValueError:
+            raise ValueError(f"Invalid timestamp format: {timestamp}")
+
+def get_system_font(bold=False) -> str:
+    """Return a suitable system font path for text overlays.
+    
+    Args:
+        bold (bool): Whether to return a bold font variant if available
+    """
+    # First try to find bold fonts if requested
+    if bold:
+        bold_font_candidates = [
+            'Arial-Bold.ttf',
+            'Helvetica-Bold.ttf',
+            '/System/Library/Fonts/Helvetica-Bold.ttc',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/System/Library/Fonts/SF-Pro-Text-Bold.otf'
+        ]
+        for font in bold_font_candidates:
+            if os.path.exists(font):
+                return font
+    
+    # Regular font alternatives
+    font_candidates = [
+        'Arial.ttf',
+        'Helvetica.ttf',
+        '/System/Library/Fonts/Helvetica.ttc',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/System/Library/Fonts/SF-Pro-Text-Regular.otf'
+    ]
+    
+    # Try to find specifically bold fonts in system fonts
+    system_fonts = fm.findSystemFonts()
+    if bold:
+        for font in system_fonts:
+            font_lower = font.lower()
+            if 'bold' in font_lower and ('arial' in font_lower or 'helvetica' in font_lower or 'sf-pro' in font_lower):
+                return font
+    
+    # Check for exact matches in font candidates
+    for font in font_candidates:
+        if os.path.exists(font):
+            return font
+    
+    # Fall back to any system font
+    if system_fonts:
+        return system_fonts[0]
+    
+    raise ValueError("No suitable font found on the system")
+
+def split_text_into_words(text):
+    """Split text into words while preserving punctuation."""
+    # This pattern keeps punctuation attached to words
+    words = re.findall(r'\b[\w\']+\b|[.,!?;:…]', text)
+    # Filter out empty strings
+    return [word for word in words if word.strip()]
+
+def create_word_highlight_clips(text, width, duration, start_time, fontsize, font_path):
+    """Create a sequence of clips with word-by-word highlighting with rectangular background."""
+    words = split_text_into_words(text)
+    
+    # Handle empty text case
+    if len(words) == 0:
+        return []
+    
+    speed_factor = 1.1  # Lower value means faster highlighting
+    time_per_word = (duration * speed_factor) / len(words)
+    
+    # Calculate dimensions for our text
+    dummy_text_clip = TextClip(
+        text, 
+        fontsize=fontsize, 
+        color='white', 
+        font=font_path, 
+        method='caption',
+        align='center',
+        size=(width - 80, None)
+    )
+    
+    # Create a background with padding
+    padding_v = 40  # Vertical padding
+    padding_h = 40  # Horizontal padding
+    bg_width = dummy_text_clip.w + padding_h * 2
+    bg_height = dummy_text_clip.h + padding_v * 2
+    
+    highlight_clips = []
+    current_words = []
+    
+    # Create a series of clips with progressively highlighted words
+    for i, word in enumerate(words):
+        current_words.append(word)
+        
+        # Join words with appropriate spacing
+        highlighted_text = ""
+        original_index = 0
+        
+        for j, highlighted_word in enumerate(current_words):
+            # Find the actual position of this word in the original text
+            if j == 0:
+                highlighted_index = text.find(highlighted_word, original_index)
+                original_index = highlighted_index
+            else:
+                # For subsequent words, start search from after previous word
+                highlighted_index = text.find(highlighted_word, original_index)
+                original_index = highlighted_index
+            
+            # If not the first word and there's space before it in the original text
+            if j > 0 and highlighted_index > 0 and text[highlighted_index-1].isspace():
+                highlighted_text += " "
+            
+            highlighted_text += highlighted_word
+            original_index += len(highlighted_word)
+        
+        # First, create a text clip to get its dimensions
+        text_clip = TextClip(
+            highlighted_text, 
+            fontsize=fontsize, 
+            color='white', 
+            font=font_path, 
+            method='caption',
+            align='center',
+            size=(width - 80, None)
+        )
+        
+        # Create a background rectangle clip with a bit of padding
+        rect_padding = 10  # Padding around text
+        rect_width = text_clip.w + (rect_padding * 2)
+        rect_height = text_clip.h + (rect_padding * 2)
+        
+        # Create colored rectangle background (semi-transparent blue)
+        rect_clip = ColorClip(
+            size=(rect_width, rect_height),
+            color=(0, 102, 204)  # RGB blue color
+        ).set_opacity(0.7)  # Make it semi-transparent
+        
+        # Position the text over the rectangle
+        text_on_rect = CompositeVideoClip([
+            rect_clip,
+            text_clip.set_position(("center", "center"))
+        ])
+        
+        # Calculate timing for this highlight
+        word_start_time = start_time + (i * time_per_word)
+        word_duration = time_per_word
+        
+        # Set timing for the highlighted text with background
+        word_highlight = text_on_rect.set_start(word_start_time).set_duration(word_duration)
+        
+        highlight_clips.append(word_highlight)
+    
+    # Add a final clip that keeps the last highlighted state until the end of the segment
+    if current_words:
+        # For the final state, we need to recreate the composite clip
+        final_text_clip = TextClip(
+            highlighted_text, 
+            fontsize=fontsize, 
+            color='white', 
+            font=font_path, 
+            method='caption',
+            align='center',
+            size=(width - 80, None)
+        )
+        
+        rect_width = final_text_clip.w + (rect_padding * 2)
+        rect_height = final_text_clip.h + (rect_padding * 2)
+        
+        final_rect_clip = ColorClip(
+            size=(rect_width, rect_height),
+            color=(0, 102, 204)
+        ).set_opacity(0.7)
+        
+        final_composite = CompositeVideoClip([
+            final_rect_clip,
+            final_text_clip.set_position(("center", "center"))
+        ])
+        
+        final_duration = duration - (len(words) * time_per_word)
+        if final_duration > 0:  # Only add if there's time remaining
+            final_highlight = final_composite.set_start(
+                start_time + len(words) * time_per_word
+            ).set_duration(final_duration)
+            
+            highlight_clips.append(final_highlight)
+    
+    return highlight_clips
+
+def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_height):
+    """Create fullscreen image overlays that appear throughout the video,
+    ensuring text overlay areas remain visible."""
+    image_clips = []
+    
+    # Use all segments
+    all_segments = images_manifest
+    
+    if not all_segments:
+        return image_clips  # Return empty list if no segments
+    
+    # Select most segments to show images for
+    segment_count = len(all_segments)
+    
+    # Select approximately 90% of the segments
+    num_to_select = max(2, int(segment_count * 0.9))
+    selected_indices = sorted(random.sample(range(segment_count), min(num_to_select, segment_count)))
+    
+    for idx in selected_indices:
+        segment = all_segments[idx]
+        
+        # Skip if URL (file path) is missing or file doesn't exist
+        if not segment.get("url") or not os.path.exists(segment["url"]):
+            print(f"Warning: Image file not found: {segment.get('url')}")
+            continue
+        
+        # Load the image
+        try:
+            img_clip = ImageClip(segment["url"])
+            
+            # Calculate start time and duration
+            start_time = timestamp_to_seconds(segment["start"])
+            duration = timestamp_to_seconds(segment["duration"])
+            
+            # Show image for approximately 90% of the segment duration
+            img_duration = duration * 1.0
+            
+            # Start right at the beginning of the segment
+            img_start = start_time
+            
+            # Calculate the height to reserve at the bottom for text overlay
+            text_height_reserve = 220  # Height to reserve for text at bottom
+            
+            # Calculate the available height for the image
+            available_height = shorts_height - text_height_reserve
+            
+            # Resize to fit within the available screen area while showing the entire image
+            width_scale = shorts_width / img_clip.w
+            height_scale = available_height / img_clip.h
+            
+            # Use the smaller scaling factor to ensure the entire image fits
+            scale_factor = min(width_scale, height_scale)
+            
+            # Resize the image
+            img_clip = img_clip.resize(scale_factor)
+            
+            # Center the image horizontally, position at the top
+            x_center = (shorts_width - img_clip.w) / 2
+            
+            # Create a partial background for the image area if needed
+            if img_clip.w < shorts_width:
+                # Create background only for the image area
+                img_bg = ColorClip(size=(shorts_width, available_height), color=(0, 0, 0))
+                img_bg = img_bg.set_duration(img_duration)
+                img_bg = img_bg.set_position((0, 0))  # Position at the top
+                
+                # Add image on top of the background
+                positioned_img = CompositeVideoClip([
+                    img_bg,
+                    img_clip.set_position((x_center, 0))  # Position at the top
+                ])
+            else:
+                # Image fills the width, no need for additional background
+                positioned_img = img_clip.set_position((x_center, 0))  # Position at the top
+            
+            # Set timing
+            positioned_img = (positioned_img
+                             .set_start(img_start)
+                             .set_duration(img_duration))
+            
+            image_clips.append(positioned_img)
+            
+        except Exception as e:
+            print(f"Error creating image overlay for {segment['url']}: {e}")
+    
+    return image_clips
+
+def create_video_with_overlays(state):
+    print("Creating final video with word-by-word highlighting...")
+    print("State from create_video node: ", state)
+    
+    # Validate required keys in state
+    if not state.get("audio_path"):
+        raise ValueError("audio_path is required in state")
+    if not state.get("images_manifest"):
+        raise ValueError("images_manifest is required in state")
+    if not state.get("script", {}).get("videoScript"):
+        raise ValueError("script.videoScript is required in state")
+    
+    # Define YouTube Shorts dimensions
+    shorts_width, shorts_height = 1080, 1920
+    
+    try:
+        # Load audio
+        audio = AudioFileClip(state["audio_path"])
+        video_duration = audio.duration
+        
+        # Create a black background for the Shorts format
+        background = ColorClip(size=(shorts_width, shorts_height), color=(0, 0, 0))
+        background = background.set_duration(video_duration)
+        
+        # Get fonts
+        font_path = get_system_font(bold=True)
+        fontsize = 60
+        
+        # Create text overlays with word-by-word highlighting
+        text_overlays = []
+        for seg in state["script"]["videoScript"]:
+            if not seg.get("text") or not seg.get("start") or not seg.get("duration"):
+                raise ValueError(f"Invalid script segment: {seg}")
+            
+            start_time = timestamp_to_seconds(seg["start"])
+            duration = timestamp_to_seconds(seg["duration"])
+            text = seg["text"]
+            
+            # Create word-by-word highlight clips
+            word_clips = create_word_highlight_clips(
+                text=text,
+                width=shorts_width,
+                duration=duration,
+                start_time=start_time,
+                fontsize=fontsize,
+                font_path=font_path
+            )
+            
+            # Position each clip at the bottom of the screen
+            bottom_margin = 150  # Margin from the bottom in pixels
+            
+            # Add all word highlight clips to overlays
+            for clip in word_clips:
+                # Position at the bottom of the screen
+                clip_height = clip.h
+                positioned_clip = clip.set_position(("center", shorts_height - clip_height - bottom_margin))
+                text_overlays.append(positioned_clip)
+        
+        # Create image overlays using the local image paths from images_manifest
+        image_overlays = create_image_overlays(
+            state["images_manifest"], 
+            video_duration,
+            shorts_width,
+            shorts_height
+        )
+        
+        # Add background music if provided
+        final_audio = audio
+        if "bg_music_path" in state and state["bg_music_path"] and os.path.exists(state["bg_music_path"]):
+            try:
+                # Load background music
+                bg_music = AudioFileClip(state["bg_music_path"])
+                
+                # Set the volume to be low (10% of original)
+                bg_music = bg_music.volumex(0.1)
+                
+                # Loop the music if it's shorter than the video
+                if bg_music.duration < video_duration:
+                    # Calculate how many times we need to loop
+                    loop_count = int(np.ceil(video_duration / bg_music.duration))
+                    # Create a list of music clips
+                    music_clips = [bg_music] * loop_count
+                    # Concatenate the clips
+                    bg_music = concatenate_audioclips(music_clips)
+                
+                # Trim to match video duration
+                bg_music = bg_music.subclip(0, video_duration)
+                
+                # Mix background music with original audio
+                final_audio = CompositeAudioClip([audio, bg_music])
+                
+                print(f"Background music added from {state['bg_music_path']}")
+            except Exception as e:
+                print(f"Warning: Could not add background music: {e}")
+        else:
+            print("No background music path provided or file not found, continuing without background music")
+        
+        # Combine all clips - ORDER MATTERS: background first, then images, then text on top
+        all_clips = [background] + image_overlays + text_overlays
+        
+        # Create composite video
+        composite = CompositeVideoClip(all_clips, size=(shorts_width, shorts_height))
+        
+        # Set the duration to match the audio
+        composite = composite.set_duration(video_duration)
+        
+        # Set the final audio
+        composite = composite.set_audio(final_audio)
+        
+        # Create output directory if it doesn't exist
+        output_dir = "output/final_videos"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate output path with timestamp
+        output_path = f"{output_dir}/video_output_{datetime.now().timestamp()}.mp4"
+        
+        # Write the final video
+        composite.write_videofile(
+            output_path,
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            audio=True,
+            threads=4,
+            preset='medium'
+        )
+        
+        # Return the path to the final video
+        return {"final_video_path": output_path}
+        
+    except Exception as e:
+        raise ValueError(f"Failed to create video: {str(e)}")
+        
+    finally:
+        # Clean up MoviePy clips
+        try:
+            if 'composite' in locals():
+                composite.close()
+            if 'audio' in locals():
+                audio.close()
+            if 'bg_music' in locals():
+                bg_music.close()
+            
+            # Close all image clips
+            if 'image_overlays' in locals():
+                for clip in image_overlays:
+                    clip.close()
+            
+            # Close all text clips
+            if 'text_overlays' in locals():
+                for clip in text_overlays:
+                    clip.close()
+                    
+        except Exception as e:
+            print(f"Warning: Failed to clean up some MoviePy clips: {e}")

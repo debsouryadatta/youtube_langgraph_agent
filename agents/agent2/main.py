@@ -233,24 +233,24 @@ def generate_images(state: AgentState):
     # Create prompt template for combining segments
     combine_prompt = ChatPromptTemplate.from_template(
         """Given the following video script segments, combine them into fewer segments suitable for generating a single image for each segment. 
-Keep all the original text but group them logically while preserving proper timing.
-Each output segment’s duration must be at least 5 seconds and no more than 6 seconds.
-If there are many short, similar segments, group them together; if there are longer segments, split them into parts so that each segment fits within the 5-6 second range.
-Original segments: {segments}
+        Keep all the original text but group them logically while preserving proper timing.
+        Each output segment’s duration must be at least 5 seconds and no more than 6 seconds.
+        If there are many short, similar segments, group them together; if there are longer segments, split them into parts so that each segment fits within the 5-6 second range.
+        Original segments: {segments}
 
-Format the response exactly as:
-{{
-    "videoScript": [
+        Format the response exactly as:
         {{
-            "start": "MM:SS",
-            "duration": "MM:SS",
-            "text": "Combined text for this segment"
-        }},
-        ...
-    ],
-    "totalDuration": "MM:SS"
-}}
-"""
+            "videoScript": [
+                {{
+                    "start": "MM:SS",
+                    "duration": "MM:SS",
+                    "text": "Combined text for this segment"
+                }},
+                ...
+            ],
+            "totalDuration": "MM:SS"
+        }}
+        """
     )
     
     # Create chain for combining segments

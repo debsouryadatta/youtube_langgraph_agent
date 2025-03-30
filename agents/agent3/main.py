@@ -2,13 +2,13 @@
 from typing import TypedDict, List
 from langgraph.graph import END, StateGraph
 
-from nodes.transcript_agent import research_and_generate_transcript
-from nodes.title_desc_agent import generate_title_description
-from nodes.thumbnail_agent import generate_thumbnail
-from nodes.audio_agent import generate_audio
-from nodes.images_agent import generate_images
-from nodes.avatar_video_agent import generate_avatar_video
-from nodes.video_agent import create_video_with_overlays
+from transcript_agent import research_and_generate_transcript
+from transcript_agent import research_and_generate_transcript
+from title_desc_agent import generate_title_description
+from audio_agent import generate_audio
+from thumbnail_agent import generate_thumbnail
+from images_agent import generate_images
+from video_agent import create_video_with_overlays
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -22,7 +22,6 @@ class AgentState(TypedDict):
     thumbnail_url: str
     audio_path: str
     images_manifest: List[dict]
-    avatar_video_path: str
     final_video_path: str
 
 # 2. Initialize Tools and Models
@@ -50,10 +49,6 @@ def images_agent(state: AgentState):
     result = generate_images(state)
     return {"images_manifest": result["images_manifest"]}
 
-def avatar_video_agent(state: AgentState):
-    result = generate_avatar_video(state)
-    return {"avatar_video_path": result["avatar_video_path"]}
-
 def video_agent(state: AgentState):
     result = create_video_with_overlays(state)
     return {"final_video_path": result["final_video_path"]}
@@ -68,7 +63,6 @@ workflow.add_node("title_desc_agent", title_desc_agent)
 workflow.add_node("thumbnail_agent", thumbnail_agent)
 workflow.add_node("audio_agent", audio_agent)
 workflow.add_node("images_agent", images_agent)
-workflow.add_node("avatar_video_agent", avatar_video_agent)
 workflow.add_node("video_agent", video_agent)
 
 workflow.set_entry_point("transcript_agent")
@@ -76,8 +70,7 @@ workflow.add_edge("transcript_agent", "title_desc_agent")
 workflow.add_edge("title_desc_agent", "thumbnail_agent")
 workflow.add_edge("thumbnail_agent", "audio_agent")
 workflow.add_edge("audio_agent", "images_agent")
-workflow.add_edge("images_agent", "avatar_video_agent")
-workflow.add_edge("avatar_video_agent", "video_agent")
+workflow.add_edge("images_agent", "video_agent")
 workflow.add_edge("video_agent", END)
 
 app = workflow.compile()
@@ -85,6 +78,6 @@ app = workflow.compile()
 # 5. Execution
 if __name__ == "__main__":
     result = app.invoke({
-        "topic": "India versus Pakistan 2025 Champions Trophy, Match review"
+        "topic": "Latest Motivational Tech Story with interesting facts"
     })
     print(f"Final video created at: {result['final_video_path']}")

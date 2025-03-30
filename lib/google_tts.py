@@ -16,7 +16,7 @@ def text_to_speech(text, output_filename):
     voice = texttospeech.VoiceSelectionParams(
         language_code="en-US",
         ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
-        name="en-US-Chirp-HD-F"
+        name="en-US-Chirp3-HD-Kore"
     )
     
     # Set audio configuration
