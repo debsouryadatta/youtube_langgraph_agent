@@ -11,28 +11,28 @@ llm = ChatGoogleGenerativeAI(
 def generate_title_description(state):
     print("Generating title and description...")
     prompt = ChatPromptTemplate.from_template(
-        """Generate compelling YouTube Shorts metadata for this tech-focused script:
+        """Generate compelling YouTube Shorts metadata for this script:
         {script}
         
         Follow these guidelines:
         1. Title must:
-           - Start with a tech-related buzzword or number
-           - Include trending tech keywords
-           - Create curiosity about a tech innovation or problem
-           - Be optimized for tech-savvy YouTube audience
+           - Start with an attention-grabbing word or number
+           - Include trending keywords relevant to the content
+           - Create curiosity or emotional appeal
+           - Be optimized for YouTube search
            - Stay under 60 characters
         
         2. Description must:
-           - Start with a tech-focused hook
-           - Include relevant tech hashtags
-           - Use tech-related emojis strategically
-           - Add a clear call-to-action for tech enthusiasts
+           - Start with an engaging hook
+           - Include relevant hashtags
+           - Use emojis strategically
+           - Add a clear call-to-action
            - Stay under 200 characters
         
         Return JSON with(The output response should be exactly like this):
         {{
-            "title": "Tech-savvy title under 60 chars",
-            "description": "Engaging tech description with emojis (200 chars)"
+            "title": "Catchy title under 60 chars",
+            "description": "Engaging description with emojis (200 chars)"
         }}"""
     )
     chain = prompt | llm | JsonOutputParser()

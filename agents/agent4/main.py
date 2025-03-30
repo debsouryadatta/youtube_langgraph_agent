@@ -77,6 +77,6 @@ app = workflow.compile()
 # 5. Execution
 if __name__ == "__main__":
     result = app.invoke({
-        "topic": "India versus Pakistan 2025 Champions Trophy, Match review"
+        "topic": "Tell me a motivational real story"
     })
     print(f"Final video created at: {result['final_video_path']}")

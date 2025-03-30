@@ -41,7 +41,7 @@
     - Transcript agent: Gemini with google search tool & Gemini
     - Title Desc agent: Gemini
     - Thumbnail agent: no services used
-    - Audio agent: Google cloud tts & groq stt
+    - Audio agent: Google cloud tts & Gemini for stt
     - Images agent: Gemini Image gen
     - Avatar video agent: no avatar agent here
     - Video agent: no services used

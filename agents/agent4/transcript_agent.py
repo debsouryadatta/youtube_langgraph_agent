@@ -65,41 +65,33 @@ def research_and_generate_transcript(state):
     
     # Generate script
     script_prompt = ChatPromptTemplate.from_template(
-        """Create a compelling 30-second YouTube Shorts script about {topic} focusing on tech motivation, tech tips & tricks, or tech stories. Use this research:
+        """Create a compelling 30-second YouTube Shorts script about {topic}. Use this research:
         {research}
         
         Follow these guidelines strictly:
-        1. Hook (0-5s): Start with an attention-grabbing tech-related opening
-        2. Core Content (5-25s): Present key tech information or insights
-        3. Call-to-Action (25-30s): End with a tech-related engagement prompt
+        1. Hook (0-5s): Start with an attention-grabbing opening
+        2. Core Content (5-25s): Present key information or insights
+        3. Call-to-Action (25-30s): End with an engagement prompt
 
-        Each segment MUST:
-        - Use a conversational, tech-enthusiast speaking style
-        - Include tech-specific interjections ("Whoa, check this out!", "This tech is mind-blowing!")
-        - Express excitement about technology ("I'm stoked to share this tech breakthrough!")
-        - Add dramatic pauses ("...and then, the algorithm did something unexpected...")
-        - Pose tech-related rhetorical questions
-        - Avoid formatting symbols or special characters
-        - Sound like an authentic tech influencer
-        - The text key should only contain the script text
-
-        Format JSON exactly like this:
-        {{
-            "videoScript": [
-                {{
-                    "start": "00:00",
-                    "duration": "00:03",
-                    "text": "Hey tech enthusiasts! Ever wondered how AI is changing our daily lives?"
-                }},
-                ...
-            ],
-            "totalDuration": "00:30"
-        }}"""
+        The script MUST:
+        - Use a conversational, enthusiastic speaking style
+        - Include natural interjections and expressions ("Wow!", "Can you believe it?!", "This is incredible!")
+        - Express genuine excitement ("I'm so excited to share this with you!")
+        - Add dramatic pauses ("...and then, something amazing happened...")
+        - Use question marks, exclamation points, and ellipses naturally
+        - Include rhetorical questions that engage the viewer
+        - Sound like a real person talking, not a robotic script
+        - Be approximately 30 seconds when read aloud at a natural pace
+        - DO NOT include any timestamps, markers, or time indicators in the script
+        - DO NOT format the response as JSON or with any special formatting
+        
+        IMPORTANT: Return ONLY the plain text script that would be spoken by the narrator, with no timestamps, formatting, or structure beyond the natural flow of speech.
+        """
     )
-    chain = script_prompt | llm | JsonOutputParser()
+    chain = script_prompt | llm | StrOutputParser()
     script = chain.invoke({
         "topic": topic,
         "research": f"Research: {research_results}"
     })
-    print("Script generated:", script)
+    print("Script generated successfully: ", script)
     return {"script": script}

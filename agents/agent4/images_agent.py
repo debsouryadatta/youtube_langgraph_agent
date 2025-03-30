@@ -122,7 +122,7 @@ def generate_images(state):
         # Generate image prompt for this segment
         image_prompt = prompt_chain.invoke({"segment_text": segment['text'], "topic": state["topic"]})
         image_prompt = image_prompt.strip()
-        print(f"Generated image prompt: {image_prompt}")
+        print(f"\n\nGenerated image prompt: {image_prompt}")
         
         # Generate image with Gemini
         image_path = f"output/images/segment_{i+1}"
