@@ -14,9 +14,10 @@ def text_to_speech(text, output_filename):
     
     # Configure voice parameters
     voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
+        language_code="hi-IN",
         ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
-        name="en-US-Chirp3-HD-Kore"
+        # name="en-US-Chirp3-HD-Kore"
+        name="hi-IN-Chirp3-HD-Leda"
     )
     
     # Set audio configuration
@@ -38,10 +39,10 @@ def text_to_speech(text, output_filename):
 
 # Example usage
 if __name__ == "__main__":
-    text = """Hey buddy! Oh my gosh, you won't believe what happened today! 
-    I was walking down the street and saw this super cute puppy... absolutely adorable! 
-    By the way, are we still on for coffee this weekend? 
-    I've been dying to tell you about this awesome new show I started watching. 
-    Let me know when you're free - can't wait to catch up!"""
-    output_file = "output/output.mp3"
+    text = """Arrey yaar! Oh my god, aaj kya hua, tu believe nahi karega! 
+    Main road pe chal raha tha aur achanak ek super cute puppy dikha... ekdum fluffy and adorable! 
+    By the way, kya humara weekend pe coffee ka plan abhi bhi on hai? 
+    Mujhe tujhe ek naya amazing show ke baare mein batana hai jo maine recently start kiya hai. 
+    Tu bata de kab free hai - I'm really excited to catch up!"""
+    output_file = "output/audios/testing.mp3"
     text_to_speech(text, output_file)

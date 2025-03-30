@@ -150,5 +150,5 @@ def generate_images(state):
                 "url": "output/images/placeholder.jpg"
             })
     
-    print("Images manifest:", images_manifest)
+    print("\n\nImages manifest:", images_manifest)
     return {"images_manifest": images_manifest}

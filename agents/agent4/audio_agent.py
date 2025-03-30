@@ -33,13 +33,13 @@ def process_transcription(audio_path):
     
     # Define the prompt for Gemini
     prompt = """
-    Please transcribe this audio and format the result as a JSON object with the following structure:
+    Please transcribe this Hindi audio and write the transcription using English letters (Roman script). Format the result as a JSON object with the following structure:
     {
         "videoScript": [
             {
                 "start": "MM:SS",
                 "duration": "MM:SS",
-                "text": "transcribed text for this segment"
+                "text": "transcribed Hindi text in Roman script"
             },
             ...more segments...
         ]
@@ -50,7 +50,10 @@ def process_transcription(audio_path):
     2. Start times should be in MM:SS format (e.g., "00:05")
     3. Durations should also be in MM:SS format
     4. Ensure segments flow naturally and don't cut off mid-sentence
-    5. Return ONLY the JSON object, no additional text
+    5. Transcribe the Hindi audio using English letters/Roman script (like: "Aaj main aapko ek kahani sunane wala hoon")
+    6. Maintain all Hindi expressions, interjections, and natural speech patterns in the transcription
+    7. Example of expected transcription style: "Tum kya kar rahe ho? Kal chalo party karne jaate hain park mein"
+    8. Return ONLY the JSON object, no additional text
     """
 
     # Create the content for the model
@@ -127,9 +130,9 @@ def generate_audio(state):
     
     # Configure voice parameters
     voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
+        language_code="hi-IN",
         ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL,
-        name="en-US-Chirp3-HD-Kore"
+        name="hi-IN-Chirp3-HD-Leda"
     )
     
     # Set audio configuration
@@ -156,6 +159,6 @@ def generate_audio(state):
         duration = audio.duration
     
     formatted_transcript = process_transcription(audio_path=audio_path)
-    print("Script after STT:", formatted_transcript)
+    print("\n\nScript after STT:", formatted_transcript)
     
     return {"audio_path": audio_path, "script": formatted_transcript}

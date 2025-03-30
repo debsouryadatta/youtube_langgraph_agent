@@ -65,7 +65,7 @@ def research_and_generate_transcript(state):
     
     # Generate script
     script_prompt = ChatPromptTemplate.from_template(
-        """Create a compelling 30-second YouTube Shorts script about {topic}. Use this research:
+        """Create a compelling 30-second YouTube Shorts script about {topic} in Hindi but written using English letters (Roman script). Use this research:
         {research}
         
         Follow these guidelines strictly:
@@ -74,18 +74,23 @@ def research_and_generate_transcript(state):
         3. Call-to-Action (25-30s): End with an engagement prompt
 
         The script MUST:
-        - Use a conversational, enthusiastic speaking style
-        - Include natural interjections and expressions ("Wow!", "Can you believe it?!", "This is incredible!")
-        - Express genuine excitement ("I'm so excited to share this with you!")
-        - Add dramatic pauses ("...and then, something amazing happened...")
+        - Be primarily in Hindi but written using English letters/Roman script (like: "Aaj main aapko ek kahani sunane wala hoon")
+        - Use a conversational, enthusiastic speaking style with natural Hindi expressions
+        - Include natural Hindi interjections and expressions ("Arrey yaar!", "Kya baat hai!", "Socho zara!")
+        - Express genuine excitement ("Main bohot excited hoon aapko yeh batane ke liye!")
+        - Add dramatic pauses ("...aur phir, kuch aisa hua jo...")
         - Use question marks, exclamation points, and ellipses naturally
-        - Include rhetorical questions that engage the viewer
-        - Sound like a real person talking, not a robotic script
+        - Include rhetorical questions in Hindi that engage the viewer
+        - Sound like a real Indian person talking casually, not a robotic script
+        - Use common Hindi phrases and expressions that young Indians use in everyday speech
         - Be approximately 30 seconds when read aloud at a natural pace
         - DO NOT include any timestamps, markers, or time indicators in the script
         - DO NOT format the response as JSON or with any special formatting
         
-        IMPORTANT: Return ONLY the plain text script that would be spoken by the narrator, with no timestamps, formatting, or structure beyond the natural flow of speech.
+        IMPORTANT: Return ONLY the plain text script that would be spoken by the narrator, with no timestamps, formatting, or structure beyond the natural flow of speech. The script should sound completely natural as if spoken by a real person.
+        
+        Example of the style (but don't copy this content):
+        "Arrey dosto! Kya aap jante hain ki duniya ka sabse bada janwar kaun sa hai? Neeli whale! Yeh itni badi hoti hai ki ek bus se bhi lambi ho sakti hai. Socho zara, kitna amazing hai na? Agar aapko yeh video pasand aaya to like karein aur comment mein batayein ki aapko kaun sa janwar sabse zyada pasand hai!"
         """
     )
     chain = script_prompt | llm | StrOutputParser()
