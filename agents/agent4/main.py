@@ -77,16 +77,16 @@ workflow.add_edge("title_desc_agent", "thumbnail_agent")
 workflow.add_edge("thumbnail_agent", "audio_agent")
 workflow.add_edge("audio_agent", "images_agent")
 workflow.add_edge("images_agent", "video_agent")
-# workflow.add_edge("video_agent", END)
-workflow.add_edge("video_agent", "uploader_agent")
-workflow.add_edge("uploader_agent", END)
+workflow.add_edge("video_agent", END)
+# workflow.add_edge("video_agent", "uploader_agent")
+# workflow.add_edge("uploader_agent", END)
 
 app = workflow.compile()
 
 # 5. Execution
 if __name__ == "__main__":
     result = app.invoke({
-        "topic": "Tell me a motivational real story"
+        "topic": "Arjuna's celestial weapons and how he acquired them from gods"
     })
     print(f"Final video created at: {result['final_video_path']}")
-    print(f"Final Shorts YT link: https://www.youtube.com/shorts/{result['video_id']}")
+    # print(f"Final Shorts YT link: https://www.youtube.com/shorts/{result['video_id']}")

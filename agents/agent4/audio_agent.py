@@ -54,6 +54,7 @@ def process_transcription(audio_path):
     6. Maintain all Hindi expressions, interjections, and natural speech patterns in the transcription
     7. Example of expected transcription style: "Tum kya kar rahe ho? Kal chalo party karne jaate hain park mein"
     8. Return ONLY the JSON object, no additional text
+    9. Ensure NO OVERLAP between segments - the start time of each segment should be equal to or greater than the end time of the previous segment (i.e., start time of current segment ≥ start time of previous segment + duration of previous segment)
     """
 
     # Create the content for the model

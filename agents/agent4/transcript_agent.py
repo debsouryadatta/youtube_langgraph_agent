@@ -24,18 +24,19 @@ def gemini_google_search(query):
             role="user",
             parts=[
                 types.Part.from_text(text=f"""
-                Conduct comprehensive research on the topic: {query}
+                I need you to perform an exhaustive, in-depth research on: {query}
                 
-                Please provide:
-                1. Key facts and information about the topic
-                2. Recent developments or trends
-                3. Different perspectives or viewpoints
-                4. Interesting statistics or data points
-                5. Expert opinions or insights
+                Your research should:
+                1. Analyze multiple high-quality sources (minimum 20-30 different websites)
+                2. Extract comprehensive factual information with specific details
+                3. Gather direct quotes from recognized authorities in the field
+                4. Uncover lesser-known but significant insights about the topic
                 
-                Format your response as a well-organized research summary with clear sections.
-                Include citations or sources where relevant.
-                Focus on providing accurate, detailed, and useful information.
+                Your response must be extremely thorough and detailed (at least 3000+ words).
+                Organize information into clear, well-structured sections with appropriate headings.
+                Prioritize authoritative sources.
+                Synthesize information to provide a comprehensive, nuanced understanding of the topic.
+                Do not summarize superficially - I need depth and substance in your research.
                 """),
             ],
         ),

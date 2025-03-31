@@ -90,8 +90,9 @@
 - [x] Add a soft background music to the video
 - [x] Clean up the code and make the overall structure better
 - [x] Integrate YouTube Api to publish the video directly to the youtube channel
-- [ ] Add slight animations to the images in the video like zoom in/zoom out/slightly moving left and right
-- [ ] Add intro and outro animations
+- [x] Add slight animations to the images in the video like zoom in/zoom out/slightly moving left and right
+- [x] Add intro and outro animations
+- [ ] Add another agent5 for tech updates and real use
 - [ ] Make the prompts better to get more interesting output video
 - [ ] Increase the types of video shorts by tweaking the overall workflow(Suppose we don't want avatar, we want a separate type of video)
 - [ ] Think for images solution, as google images search might give same images or might have issue in downloading(although we have the placeholder image in place of that)

@@ -46,7 +46,7 @@ def generate_images(state):
                 types.Content(
                     role="user",
                     parts=[
-                        types.Part.from_text(text=prompt),
+                        types.Part.from_text(text=f"The dimentions of the generated images should strictly be 1080x1920, vertical youtube shorts size. {prompt}"),
                     ],
                 ),
             ]
@@ -100,16 +100,27 @@ def generate_images(state):
         Video topic: {topic}
         
         Create an image generation prompt that:
-        1. Is highly detailed and descriptive (at least 50 words)
-        2. Specifies a vertical/portrait orientation with 1080x1820 dimensions
+        1. Is highly detailed and descriptive (at least 100 words)
+        2. Specifies a vertical/portrait orientation with 1080x1920 dimensions strictly
         3. Includes specific visual elements that would be engaging for YouTube Shorts
-        4. Describes lighting, mood, style, and composition
-        5. Requests high-quality, vibrant imagery with clear subjects
+        4. Describes lighting, mood, style, and composition in precise detail
+        5. Requests ultra high-quality, vibrant imagery with clear, sharp subjects
         6. Specifies a modern, professional aesthetic suitable for tech content
         7. Avoids any text or words in the image
+        8. Incorporates professional cinematic lighting techniques (e.g., rim lighting, volumetric lighting)
+        9. Uses hyper-realistic digital art style with crystal clear details and 8K resolution
+        10. Includes strategic depth of field effects for visual hierarchy
+        11. Specifies rich color grading with complementary color schemes and HDR-like contrast
+        12. Requests photorealistic textures and materials with microscopic details
+        13. Describes dynamic composition with strong focal points and visual flow
+        14. Incorporates subtle lens effects like chromatic aberration or lens flare where appropriate
+        15. Specifies reflections, shadows, and ambient occlusion for dimensional realism
+        16. Requests ray-traced lighting effects for photorealistic rendering
+        17. Includes atmospheric elements like particles or volumetric fog for depth
         
         The prompt should be optimized for AI image generation to create visually stunning, 
-        attention-grabbing images that perfectly complement the video segment.
+        photorealistic, attention-grabbing images with crystal clear quality that perfectly 
+        complement the video segment.
         
         Return only the image generation prompt with no additional formatting."""
     )
