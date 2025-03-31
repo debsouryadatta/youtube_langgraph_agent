@@ -101,7 +101,7 @@ def generate_images(state):
         
         Create an image generation prompt that:
         1. Is highly detailed and descriptive (at least 50 words)
-        2. Specifies a vertical/portrait orientation with 1080x1620 dimensions
+        2. Specifies a vertical/portrait orientation with 1080x1820 dimensions
         3. Includes specific visual elements that would be engaging for YouTube Shorts
         4. Describes lighting, mood, style, and composition
         5. Requests high-quality, vibrant imagery with clear subjects

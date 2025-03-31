@@ -8,6 +8,12 @@ wheels/
 
 # Virtual environments
 .venv
-.env
 output/
+
+
+# Secrets
+.env
+secrets/
 gcp_tts_key.json
+yt_uploader.json
+youtube-uploader-oauth2.json

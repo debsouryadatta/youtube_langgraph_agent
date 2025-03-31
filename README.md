@@ -36,7 +36,7 @@
 - Specialised for: ---Just for testing---
 
 ### Agent 4
-- Specialised for: Psychological, Motivational, Story telling, Movie recommendation yt shorts
+- Specialised for: Psychological, Motivational, Story telling, Movie recommendation yt shorts in Hinglish
 - Services used:
     - Transcript agent: Gemini with google search tool & Gemini
     - Title Desc agent: Gemini
@@ -45,6 +45,7 @@
     - Images agent: Gemini Image gen
     - Avatar video agent: no avatar agent here
     - Video agent: no services used
+    - Uploader agent: YouTube API v3
 
 
 <br>
@@ -60,6 +61,7 @@
 - images_agent.py -> Generate the images based on the transcript
 - avatar_video_agent.py -> Generate the avatar video from the audio
 - video_agent.py -> Generate the video from the transcript and avatar video
+- uploader_agent.py -> Uploads video to youtube using youtube api v3
 
 **lib folder:**
 - youtube_api1.py -> Fetch the top viewed youtube videos on search query with youtube api
@@ -73,6 +75,7 @@
 - create_video3.py -> Create video from the text and the video with audio(generated with simli api) + included google searched images to stick on the top of the video.
 - create_video4.py -> Create video from the text and the video with audio(generated with simli api) + included google searched images to stick on the top of the video + included the background music to the video
 - gemini_search.py -> Gemini response with google search tool
+- upload_to_youtube.py -> Uploads video to youtube using youtube api v3
 
 
 <br>
@@ -86,9 +89,11 @@
 - [x] Add the avatar api to the video with Simli api
 - [x] Add a soft background music to the video
 - [x] Clean up the code and make the overall structure better
+- [x] Integrate YouTube Api to publish the video directly to the youtube channel
+- [ ] Add slight animations to the images in the video like zoom in/zoom out/slightly moving left and right
+- [ ] Add intro and outro animations
 - [ ] Make the prompts better to get more interesting output video
 - [ ] Increase the types of video shorts by tweaking the overall workflow(Suppose we don't want avatar, we want a separate type of video)
-- [ ] Integrate YouTube Api to publish the video directly to the youtube channel
 - [ ] Think for images solution, as google images search might give same images or might have issue in downloading(although we have the placeholder image in place of that)
 
 

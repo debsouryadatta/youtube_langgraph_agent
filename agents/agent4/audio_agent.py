@@ -117,7 +117,7 @@ def generate_audio(state):
     print("Generating audio...")
     
     # Set the path to your service account key file
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "gcp_tts_key.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "secrets/gcp_tts_key.json"
     
     # Initialize the client
     client = texttospeech.TextToSpeechClient()

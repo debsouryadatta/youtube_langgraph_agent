@@ -23,53 +23,6 @@ def timestamp_to_seconds(timestamp: str) -> float:
         except ValueError:
             raise ValueError(f"Invalid timestamp format: {timestamp}")
 
-def get_system_font(bold=False) -> str:
-    """Return a suitable system font path for text overlays.
-    
-    Args:
-        bold (bool): Whether to return a bold font variant if available
-    """
-    # First try to find bold fonts if requested
-    if bold:
-        bold_font_candidates = [
-            'Arial-Bold.ttf',
-            'Helvetica-Bold.ttf',
-            '/System/Library/Fonts/Helvetica-Bold.ttc',
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-            '/System/Library/Fonts/SF-Pro-Text-Bold.otf'
-        ]
-        for font in bold_font_candidates:
-            if os.path.exists(font):
-                return font
-    
-    # Regular font alternatives
-    font_candidates = [
-        'Arial.ttf',
-        'Helvetica.ttf',
-        '/System/Library/Fonts/Helvetica.ttc',
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-        '/System/Library/Fonts/SF-Pro-Text-Regular.otf'
-    ]
-    
-    # Try to find specifically bold fonts in system fonts
-    system_fonts = fm.findSystemFonts()
-    if bold:
-        for font in system_fonts:
-            font_lower = font.lower()
-            if 'bold' in font_lower and ('arial' in font_lower or 'helvetica' in font_lower or 'sf-pro' in font_lower):
-                return font
-    
-    # Check for exact matches in font candidates
-    for font in font_candidates:
-        if os.path.exists(font):
-            return font
-    
-    # Fall back to any system font
-    if system_fonts:
-        return system_fonts[0]
-    
-    raise ValueError("No suitable font found on the system")
-
 def split_text_into_words(text):
     """Split text into words while preserving punctuation and filtering out single-letter words."""
     # This pattern keeps punctuation attached to words
@@ -143,13 +96,13 @@ def create_word_by_word_clips(text, start_time, duration, fontsize, font_path, s
         # Each word group appears for less than its allocated time to ensure no overlap
         word_duration = time_per_group * 0.9  # 90% of the allocated time
         
-        # Create text clip for the word group
+        # Create text clip for the word group with increased boldness and better visibility
         text_clip = TextClip(
             word_group, 
             fontsize=fontsize, 
             color='white', 
             font=font_path,
-            stroke_width=2,  # Add stroke for better visibility
+            stroke_width=4,  # Increased stroke width for more boldness
             stroke_color='black',  # Black outline for better contrast
             method='label'
         )
@@ -158,7 +111,7 @@ def create_word_by_word_clips(text, start_time, duration, fontsize, font_path, s
         text_clip = (text_clip
                     .set_start(word_start_time)
                     .set_duration(word_duration)
-                    .set_position(("center", "center")))
+                    .set_position(("center", "center")))  # Position in the center of the screen
         
         word_clips.append(text_clip)
     
@@ -213,8 +166,9 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
             # Update the end time for the next iteration
             previous_end_time = img_start + img_duration
             
-            # Calculate the height to reserve at the bottom for text overlay
-            text_height_reserve = 220  # Height to reserve for text at bottom
+            # Calculate the height to reserve at the center for text overlay
+            # Reserve more space in the middle for text
+            text_height_reserve = 300  # Increased height to reserve for text in the middle
             
             # Calculate the available height for the image
             available_height = shorts_height - text_height_reserve
@@ -231,24 +185,26 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
             
             # Center the image horizontally AND vertically
             x_center = (shorts_width - img_clip.w) / 2
-            # Calculate vertical position to center in the available space
-            y_center = (available_height - img_clip.h) / 2
+            
+            # Position the image to leave space in the middle for text
+            # Move image up to leave the middle area clear for text
+            y_position = (available_height - img_clip.h) / 4  # Position image in the upper part
             
             # Create a partial background for the image area if needed
             if img_clip.w < shorts_width or img_clip.h < available_height:
                 # Create background only for the image area
-                img_bg = ColorClip(size=(shorts_width, available_height), color=(0, 0, 0))
+                img_bg = ColorClip(size=(shorts_width, shorts_height), color=(0, 0, 0))
                 img_bg = img_bg.set_duration(img_duration)
                 img_bg = img_bg.set_position((0, 0))  # Position at the top
                 
                 # Add image on top of the background
                 positioned_img = CompositeVideoClip([
                     img_bg,
-                    img_clip.set_position((x_center, y_center))  # Position in center
+                    img_clip.set_position((x_center, y_position))  # Position image higher up
                 ])
             else:
                 # Image fills the width, no need for additional background
-                positioned_img = img_clip.set_position((x_center, y_center))  # Position in center
+                positioned_img = img_clip.set_position((x_center, y_position))  # Position image higher up
             
             # Set timing
             positioned_img = (positioned_img
@@ -297,8 +253,8 @@ def create_video_with_overlays(state):
         background = background.set_duration(video_duration)
         
         # Get fonts
-        font_path = get_system_font(bold=True)
-        fontsize = 70  # Increased font size for better visibility
+        font_path = "assets/fonts/LilitaOne-Regular.ttf"
+        fontsize = 80  # Increased font size for better visibility and boldness
         
         # Create text overlays with word-by-word highlighting
         text_overlays = []
@@ -320,14 +276,9 @@ def create_video_with_overlays(state):
                 shorts_width=shorts_width
             )
             
-            # Position each clip at the bottom of the screen
-            bottom_margin = 150  # Margin from the bottom in pixels
-            
-            # Add all word clips to overlays
-            for clip in word_clips:
-                # Position at the bottom of the screen
-                positioned_clip = clip.set_position(("center", shorts_height - bottom_margin))
-                text_overlays.append(positioned_clip)
+            # Position each clip in the center of the screen
+            # No need to reposition as we're already setting position to center in create_word_by_word_clips
+            text_overlays.extend(word_clips)
         
         # Create image overlays using the local image paths from images_manifest
         image_overlays = create_image_overlays(
@@ -428,6 +379,6 @@ def create_video_with_overlays(state):
             print(f"Warning: Failed to clean up some MoviePy clips: {e}")
 
 if __name__ == "__main__":
-    state = {'topic': 'Tell me a motivational real story', 'script': {'videoScript': [{'start': '00:00', 'duration': '00:05', 'text': 'Ever feel like giving up? I get it. But listen to this.'}, {'start': '00:05', 'duration': '00:06', 'text': "I'm so excited to share this with you. Have you heard of Colonel Sanders? Yeah, the KFC guy."}, {'start': '00:11', 'duration': '00:07', 'text': 'Get this. He was 65, 65 years old and basically broke'}, {'start': '00:18', 'duration': '00:06', 'text': 'when he decided to turn his chicken recipe into Kentucky Fried Chicken. Can you believe it?'}, {'start': '00:24', 'duration': '00:05', 'text': '65. Most people are thinking about retirement.'}, {'start': '00:29', 'duration': '00:06', 'text': 'He was thinking about fried chicken domination. Talk about never giving up on your dream, right?'}, {'start': '00:35', 'duration': '00:07', 'text': "This is incredible. So, what's your asterisk KFC? What dream are asterisk you going to chase"}, {'start': '00:42', 'duration': '00:06', 'text': "no matter your age? Let me know in the comments. Let's inspire each other."}], 'totalDuration': '00:48'}, 'title': '65 & Broke?! 🤯 Never Give Up! #Motivation #Inspiration', 'description': "Feeling defeated? Colonel Sanders wasn't! 🍗 He started KFC at 65! What's YOUR dream? 👇 Comment below! #NeverGiveUp #KFC #Shorts #Success", 'thumbnail_url': 'https://avatars.githubusercontent.com/u/91617309?v=4', 'audio_path': 'output/audios/audio_1743319871.140448.mp3', 'images_manifest': [{'start': '00:00', 'duration': '00:05', 'text': 'Ever feel like giving up? I get it. But listen to this.', 'url': 'output/images/segment_1.png', 'source': 'Gemini', 'prompt': "Vertical portrait orientation, 1080x1620. A lone figure, a young woman with determined eyes, stands silhouetted against a breathtaking sunrise over a vast mountain range. She's dressed in modern athletic wear, suggesting resilience and perseverance. The sky explodes with vibrant hues of orange, pink, and gold, contrasting sharply with the deep blue shadows clinging to the mountain peaks. Use dramatic backlighting to emphasize her silhouette and create a sense of scale and isolation. The composition should be slightly off-center, drawing the viewer's eye towards her. The mood is hopeful and inspiring, conveying a feeling of overcoming adversity. Render in a photorealistic style with sharp focus and exceptional detail, giving a sense of awe and wonder. The overall aesthetic is clean, modern, and professional, suitable for a tech-savvy audience. No text or logos."}, {'start': '00:05', 'duration': '00:06', 'text': "I'm so excited to share this with you. Have you heard of Colonel Sanders? Yeah, the KFC guy.", 'url': 'output/images/segment_2.png', 'source': 'Gemini', 'prompt': "Vertical portrait of a young, enthusiastic entrepreneur in a brightly lit, modern office space. The entrepreneur is mid-gesture, eyes wide with excitement, subtly pointing towards a vintage framed portrait of a younger Colonel Sanders (Harland Sanders) hanging on the wall behind them. The portrait is slightly out of focus, suggesting it's a point of inspiration rather than the main subject. The office features sleek, minimalist furniture and a large window overlooking a vibrant cityscape bathed in warm, golden hour sunlight. Employ a shallow depth of field to keep the entrepreneur sharp and the background soft. The overall mood is optimistic and energetic, with a color palette of warm yellows, oranges, and teals. Use a realistic, slightly stylized digital painting style, aiming for high resolution and detail to create a visually compelling image for a YouTube Short. Dimensions: 1080x1620. No text."}, {'start': '00:11', 'duration': '00:07', 'text': 'Get this. He was 65, 65 years old and basically broke', 'url': 'output/images/segment_3.png', 'source': 'Gemini', 'prompt': "A vertical portrait image (1080x1620) depicting a weathered but determined 65-year-old man. He is sitting alone on a park bench under the shade of a large, leafy tree, looking thoughtfully into the distance. His clothing is simple and slightly worn, but clean and respectable. The bench is slightly aged but well-maintained. Sunlight filters through the leaves, creating dappled lighting on his face and the surrounding area, highlighting wrinkles around his eyes that tell a story of experience. The background is slightly blurred, focusing attention on the man. The overall mood is somber yet hopeful. The style is realistic with a touch of painterly flair, vibrant colors, and high detail. The lighting should be soft and warm, emphasizing the man's resilience. The composition should be balanced and visually appealing, avoiding any text or words. The aesthetic is modern and professional, suitable for tech-related content, conveying a sense of quiet strength and the potential for change."}, {'start': '00:18', 'duration': '00:06', 'text': 'when he decided to turn his chicken recipe into Kentucky Fried Chicken. Can you believe it?', 'url': 'output/images/segment_4.png', 'source': 'Gemini', 'prompt': "Vertical portrait orientation, 1080x1620. A determined, slightly weathered, but kind-looking Colonel Sanders (stylized, not photorealistic) in his late 40s, standing in a 1930s era, clean but modest kitchen. He's wearing a crisp white chef's apron, a partially unbuttoned white shirt, and a loosened black tie. His sleeves are rolled up, revealing strong forearms. He's gazing confidently towards the viewer, a subtle smile playing on his lips. In the background, a large cast iron skillet sizzles with golden-brown fried chicken pieces. Ingredients like flour, spices, and milk are neatly arranged on a wooden countertop. Warm, inviting lighting emanates from a window, casting soft shadows and highlighting the textures of the food and kitchenware. The overall mood is hopeful, industrious, and hinting at future success. A slight depth of field blurs the very back of the kitchen, focusing attention on Colonel Sanders and the chicken. A modern, professional aesthetic with vibrant colors and sharp details. High-quality resolution. No text or words visible."}, {'start': '00:24', 'duration': '00:05', 'text': '65. Most people are thinking about retirement.', 'url': 'output/images/segment_5.png', 'source': 'Gemini', 'prompt': 'Vertical portrait, 1080x1620. Create an image depicting a diverse group of people, aged 30s-50s, subtly blurred in the background, gazing wistfully at a distant, idealized beach scene through a large, modern office window. Focus sharply on a single, determined individual in the foreground, mid-stride, wearing smart casual attire, looking directly at the viewer with a confident, almost challenging expression. The office space is bright, clean, and minimalist, with soft, natural light streaming in from the window, creating long shadows. The beach scene visible through the window should be vibrant and inviting, contrasting with the focused, professional atmosphere of the office. The overall mood should be aspirational but grounded in reality. Style: Clean, modern, slightly desaturated color palette except for the vibrant beach scene. High quality, sharp focus on the foreground individual, bokeh effect on the background.'}, {'start': '00:29', 'duration': '00:06', 'text': 'He was thinking about fried chicken domination. Talk about never giving up on your dream, right?', 'url': 'output/images/segment_6.png', 'source': 'Gemini', 'prompt': "A vertical (1080x1620) image depicting a determined young African-American man in his late 20s, wearing a crisp, slightly grease-stained white chef's apron over a casual t-shirt. He's standing in a bustling, modern, stainless-steel commercial kitchen. The background is slightly blurred, showing hints of activity: other chefs, gleaming equipment, and steam rising from cooking stations. His gaze is intense and focused, directed slightly upwards and to the right, as if visualizing a grand ambition. In his mind's eye, subtly overlaid and semi-transparent in front of him, is a vibrant, almost ethereal image of a cascading mountain of perfectly golden-brown fried chicken. The lighting is bright and warm, highlighting the crispness of the imagined chicken and the determination in his face. The overall mood is aspirational and energetic. The style should be photorealistic but with a slight stylized, almost hyperreal quality, emphasizing the textures and colors. Composition should be tight on the man's face and upper body, drawing the viewer's eye to his expression and the projected image of the fried chicken. High quality, vibrant colors, and clear subject matter are crucial."}, {'start': '00:35', 'duration': '00:07', 'text': "This is incredible. So, what's your asterisk KFC? What dream are asterisk you going to chase", 'url': 'output/images/placeholder.jpg'}, {'start': '00:42', 'duration': '00:06', 'text': "no matter your age? Let me know in the comments. Let's inspire each other.", 'url': 'output/images/segment_8.png', 'source': 'Gemini', 'prompt': 'Vertical portrait orientation, 1080x1620. A vibrant and hopeful scene depicting a diverse group of people silhouetted against a breathtaking sunrise over a futuristic cityscape. The silhouettes should represent different ages, from children to elderly figures, all gazing towards the radiant sun. The cityscape should incorporate elements of sustainable technology, such as wind turbines and solar panels, subtly integrated into the architecture. The lighting should be dramatic, with warm orange and pink hues emanating from the sunrise, casting long, soft shadows. A sense of aspiration and unity should permeate the image. Style: Modern, clean, and optimistic, with a touch of science fiction. Composition: A wide shot, emphasizing the scale of the cityscape and the collective hope of the silhouetted figures. High quality, sharp focus, and vibrant colors.'}]}
+    state = {'topic': 'Tell me a motivational real story', 'script': {'videoScript': [{'start': '00:00', 'duration': '00:05', 'text': 'Are yaar, kya aap life mein kabhi haar manne ka socha hai? Main bahut excited hoon'}, {'start': '00:05', 'duration': '00:04', 'text': 'aapko ek aisi kahani sunne ke liye jo aapki soch badal degi.'}, {'start': '00:08', 'duration': '00:06', 'text': 'Ek gaon mein ek ladki thi. Uske paas kuch nahi tha. Zero. Lekin uske andar ek aag thi,'}, {'start': '00:14', 'duration': '00:06', 'text': 'kuch banne ki. Log us par haste the, kehte the, tu nahi kar payegi.'}, {'start': '00:19', 'duration': '00:06', 'text': 'Dot. Phir kuch aisa hua jo... Usne din raat mehnat ki. Fail hui, giri,'}, {'start': '00:23', 'duration': '00:04', 'text': 'giri, lekin haar nahi maani.'}, {'start': '00:25', 'duration': '00:05', 'text': 'Kya aapko pata hai woh kya bani? Aaj woh ek successful business woman hai.'}, {'start': '00:29', 'duration': '00:05', 'text': 'Kya baat hai. Socho zara, agar woh kar sakti hai toh aap bhi kar sakte ho.'}, {'start': '00:34', 'duration': '00:04', 'text': 'Hai na? Toh comment mein batao, aap aaj kya challenge face kar rahe ho?'}, {'start': '00:38', 'duration': '00:01', 'text': 'Chalo, saath mein jeetenge.'}], 'totalDuration': '00:39'}, 'title': 'NEVER GIVE UP! 💪 Inspiring Motivation Story #shorts', 'description': 'Feeling down? 🥺 This story will change your perspective! 🔥 You CAN do it! What challenges are YOU facing? Comment below! 👇 #motivation #inspiration #success', 'thumbnail_url': 'https://avatars.githubusercontent.com/u/91617309?v=4', 'audio_path': 'output/audios/audio_1743362982.207016.mp3', 'images_manifest': [{'start': '00:00', 'duration': '00:05', 'text': 'Are yaar, kya aap life mein kabhi haar manne ka socha hai? Main bahut excited hoon', 'url': 'output/images/segment_1.png', 'source': 'Gemini', 'prompt': "A highly detailed vertical (1080x1920) image depicting a determined young Indian man in his late 20s, dressed in smart casual attire (think a stylish button-down shirt and dark jeans), standing amidst a bustling, modern Indian city street. The background should be slightly blurred, creating depth of field and focusing attention on the subject. He is looking directly at the viewer with a confident, slightly mischievous smile. His eyes sparkle with determination and resilience. The scene is bathed in golden hour lighting, with warm sunlight filtering through the surrounding buildings, casting long shadows and highlighting his face. The overall mood is optimistic and uplifting. The style is photorealistic but with a slightly stylized, vibrant color palette, leaning towards a modern, professional aesthetic. Include subtle bokeh effects in the background light sources. The composition should follow the rule of thirds, placing the man slightly off-center for visual interest. No text or words should be visible in the image. The image should convey a sense of unwavering determination and excitement for life's possibilities. Aim for high resolution and exceptional clarity."}, {'start': '00:05', 'duration': '00:04', 'text': 'aapko ek aisi kahani sunne ke liye jo aapki soch badal degi.', 'url': 'output/images/segment_2.png', 'source': 'Gemini', 'prompt': 'Vertical portrait (1080x1820). A lone, weathered hand meticulously plants a tiny seedling in parched, cracked earth under a scorching sun. The hand is slightly blurred, suggesting purposeful, ongoing action. In the background, a distant, hazy desert landscape stretches towards the horizon, hinting at hardship. Focus should be sharp on the seedling and the immediate surrounding earth. The overall mood is hopeful yet determined. Lighting is dramatic, with strong contrasts emphasizing the struggle and resilience. Use a hyperrealistic, photographic style with vibrant, warm colors for the earth tones, contrasting with a pale, slightly washed-out sky. Emphasize textures: the roughness of the hand, the dryness of the soil, the fragility of the seedling. The composition should lead the eye from the distant landscape, focusing on the hand and the seedling as the central point of hope and transformation. Modern, clean aesthetic. No text.'}, {'start': '00:08', 'duration': '00:06', 'text': 'Ek gaon mein ek ladki thi. Uske paas kuch nahi tha. Zero. Lekin uske andar ek aag thi,', 'url': 'output/images/segment_3.png', 'source': 'Gemini', 'prompt': "Vertical portrait of a young South Asian girl (1080x1920). She is standing in a dusty, rural Indian village. Her clothes are simple and worn, but clean. Her expression is determined and hopeful, with a slight upward tilt to her chin. Her eyes are large and bright, reflecting the golden light of the setting sun. The background shows basic mud homes with thatched roofs, realistically rendered. Dust particles float in the air, illuminated by the warm, dramatic sunlight. Focus sharply on the girl's face and upper body. The overall mood is one of resilience and quiet strength. Use a hyperrealistic painting style with vibrant colors and high dynamic range. Lighting should be warm and dramatic, emphasizing the girl's inner fire. The composition should be tight and intimate, drawing the viewer's attention to her face. Professional, modern aesthetic, avoiding any cliche or overly sentimental elements."}, {'start': '00:14', 'duration': '00:06', 'text': 'kuch banne ki. Log us par haste the, kehte the, tu nahi kar payegi.', 'url': 'output/images/segment_4.png', 'source': 'Gemini', 'prompt': "Vertical portrait, 1080x1920: A young woman in her early 20s, dressed in slightly worn but determined clothes, stands in a dimly lit, cluttered workshop. She's surrounded by disassembled electronics, wires, and tools. Her face is etched with a mix of frustration and unwavering resolve. The background is slightly blurred, focusing attention on her. A single, bright overhead light illuminates her face and the specific project she's working on – a complex circuit board. The color palette should be predominantly cool blues and grays, with a pop of vibrant green from an LED light on the circuit board. The mood is one of quiet struggle and perseverance. The style is realistic, slightly gritty, with a focus on texture and detail. High-quality, vibrant imagery. A subtle glow emanates from her focused eyes. The composition should emphasize her isolation and the difficulty of her task, yet hint at the potential for innovation and success."}, {'start': '00:19', 'duration': '00:06', 'text': 'Dot. Phir kuch aisa hua jo... Usne din raat mehnat ki. Fail hui, giri,', 'url': 'output/images/segment_5.png', 'source': 'Gemini', 'prompt': 'A young woman, around 25, with determined eyes, sits hunched over a laptop in a dimly lit, modern apartment. The laptop screen glows brightly, casting a soft light on her face, highlighting streaks of exhaustion but also unwavering focus. Empty coffee cups and scattered notes surround her workspace, suggesting long hours of work. The scene is viewed from a slightly low angle, emphasizing the height of the vertical 1080x1820 frame and creating a sense of aspiration. Outside the window, the faint glow of city lights hints at the late hour. The overall mood is one of quiet determination and perseverance against adversity. The style should be realistic yet slightly stylized, with vibrant colors and sharp focus. The image should convey a modern, tech-savvy vibe, suitable for a YouTube Shorts audience. High-quality rendering with realistic textures and lighting is crucial. No text or logos should be visible.'}, {'start': '00:23', 'duration': '00:04', 'text': 'giri, lekin haar nahi maani.', 'url': 'output/images/segment_6.png', 'source': 'Gemini', 'prompt': 'A vertical 1080x1820 image depicting a young, determined female rock climber, mid-fall, but still gripping the rock face with one hand. She\'s wearing brightly colored climbing gear (harness, helmet, shoes) against a rugged, sun-drenched mountain backdrop. Dust and chalk powder billow around her, emphasizing the movement and struggle. The composition should be dynamic, capturing the moment of near-failure with a sense of resilience. The lighting is dramatic, with strong highlights and shadows to accentuate her muscular form and the texture of the rock. The overall mood is motivational and inspiring, conveying a sense of "grit" and determination. The style is realistic but with a slightly stylized, vibrant color palette. The climber\'s face should be visible, showing intense focus and unwavering resolve, despite the fall. No text or words should be present in the image.'}, {'start': '00:25', 'duration': '00:05', 'text': 'Kya aapko pata hai woh kya bani? Aaj woh ek successful business woman hai.', 'url': 'output/images/segment_7.png', 'source': 'Gemini', 'prompt': "Vertical portrait, 1080x1920. Image depicting a modern, successful businesswoman in her late 30s, radiating confidence and competence. She stands in a bright, airy, contemporary office space, possibly a co-working environment with large windows overlooking a vibrant city skyline. She's dressed in stylish, professional attire - a tailored blazer and smart trousers, subtle jewelry. The background features blurred figures of other professionals working collaboratively, implying a dynamic and thriving business environment. Focus is sharply on the businesswoman, with soft, diffused natural lighting emphasizing her strong features and warm smile. The overall mood is optimistic, empowering, and aspirational. Style is photorealistic with a touch of artistic flair, using a slightly desaturated color palette with pops of vibrant accent colors (e.g., a colorful piece of abstract art on the wall). Composition follows the rule of thirds, placing the businesswoman slightly off-center to create visual interest. High resolution, sharp details, and vibrant colors are essential. No text or logos should appear in the image."}, {'start': '00:29', 'duration': '00:05', 'text': 'Kya baat hai. Socho zara, agar woh kar sakti hai toh aap bhi kar sakte ho.', 'url': 'output/images/segment_8.png', 'source': 'Gemini', 'prompt': "Vertical portrait (1080x1920). A vibrant, uplifting scene depicting a young woman, perhaps in her late 20s or early 30s, triumphantly reaching the summit of a mountain. She's dressed in modern athletic gear, radiating confidence and joy. The background showcases a breathtaking panoramic vista of rolling hills bathed in the warm, golden light of a rising or setting sun. Capture the feeling of accomplishment. Soft, diffused lighting with strong backlighting to create a halo effect around her silhouette. Focus on her determined expression and the expansive landscape behind her. Modern, slightly stylized rendering with vivid colors and sharp details. The composition emphasizes the verticality of the scene and her upward trajectory, symbolizing achievement and aspiration. A single, unfurled flag (perhaps a small, personal one) is subtly visible in her hand, further emphasizing her victory. No text or logos."}, {'start': '00:34', 'duration': '00:04', 'text': 'Hai na? Toh comment mein batao, aap aaj kya challenge face kar rahe ho?', 'url': 'output/images/segment_9.png', 'source': 'Gemini', 'prompt': "Vertical portrait, 1080x1820. A young South Asian woman, early 20s, with a determined expression, stands confidently amidst a chaotic cityscape at sunrise. She's wearing modern business attire - a blazer over a simple top. The city behind her is partially blurred, emphasizing her focus. In the foreground, subtle, stylized geometric shapes (circles, lines, triangles) representing challenges are faintly visible and semi-transparent, almost like digital overlays. The overall color palette is warm and vibrant, with oranges and pinks from the sunrise contrasting with the cool blues and grays of the cityscape. Lighting is soft and diffused, highlighting her face and creating a hopeful mood. Style: Modern, clean, professional. Composition: Rule of thirds, with the woman positioned slightly to the left. High quality, sharp focus, vibrant colors, avoiding any text. The image should evoke a sense of overcoming obstacles and facing the day with courage."}, {'start': '00:38', 'duration': '00:01', 'text': 'Chalo, saath mein jeetenge.', 'url': 'output/images/segment_10.png', 'source': 'Gemini', 'prompt': 'A 1080x1920 vertical portrait image depicting a diverse group of young adults (ages 20-30) huddled together, their faces illuminated by the warm glow of a laptop screen. They are in a modern, minimalist co-working space with large windows overlooking a bustling city at twilight. The overall mood is optimistic and determined. One individual, slightly in front, is looking directly at the viewer with a confident, encouraging smile. The others are focused on the screen, showcasing a collaborative effort. Soft, ambient lighting enhances the sense of unity and purpose. The style is realistic with a slight touch of stylized rendering, emphasizing clean lines and vibrant color palettes. The composition should be tight and intimate, capturing the feeling of camaraderie and shared ambition. High-quality image with sharp focus on the faces and subtle background blur.'}]}
     result = create_video_with_overlays(state)
     print(result)
