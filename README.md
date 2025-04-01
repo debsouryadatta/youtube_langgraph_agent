@@ -63,7 +63,7 @@
 - video_agent.py -> Generate the video from the transcript and avatar video
 - uploader_agent.py -> Uploads video to youtube using youtube api v3
 
-**lib folder:**
+**test folder:**
 - youtube_api1.py -> Fetch the top viewed youtube videos on search query with youtube api
 - youtube_api2.py -> Fetch the latest videos from youtube channels with youtube api
 - create_video.py -> Create video from the text, images and audio with word by word highlighting
