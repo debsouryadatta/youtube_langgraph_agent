@@ -96,6 +96,7 @@ def generate_images(state):
     search_prompt = ChatPromptTemplate.from_template(
         """Create a detailed image generation prompt based on this video segment text for a YouTube Shorts video (vertical format).
         
+        Full Script: {script}
         Video segment text: {segment_text}
         Video topic: {topic}
         
@@ -129,9 +130,9 @@ def generate_images(state):
     prompt_chain = search_prompt | llm | StrOutputParser()
     
     images_manifest = []
-    for i, segment in enumerate(state["script"]["videoScript"]):
+    for i, segment in enumerate(state["images_manifest"]):
         # Generate image prompt for this segment
-        image_prompt = prompt_chain.invoke({"segment_text": segment['text'], "topic": state["topic"]})
+        image_prompt = prompt_chain.invoke({"script": state["script"], "segment_text": segment['text'], "topic": state["topic"]})
         image_prompt = image_prompt.strip()
         print(f"\n\nGenerated image prompt: {image_prompt}")
         

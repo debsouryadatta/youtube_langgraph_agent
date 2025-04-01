@@ -76,6 +76,7 @@
 - create_video4.py -> Create video from the text and the video with audio(generated with simli api) + included google searched images to stick on the top of the video + included the background music to the video
 - gemini_search.py -> Gemini response with google search tool
 - upload_to_youtube.py -> Uploads video to youtube using youtube api v3
+- generate_detailed_transcript.py -> Generates word by word transcript with timestamps
 
 
 <br>

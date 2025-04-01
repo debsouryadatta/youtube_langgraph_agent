@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
+    model="gemini-2.5-pro-exp-03-25",
     api_key=os.getenv("GEMINI_API_KEY"),
 )
 
@@ -66,32 +66,31 @@ def research_and_generate_transcript(state):
     
     # Generate script
     script_prompt = ChatPromptTemplate.from_template(
-        """Create a compelling 30-second YouTube Shorts script about {topic} in Hindi but written using English letters (Roman script). Use this research:
+        """Create a compelling 40-second motivational or storytelling YouTube Shorts script about {topic} in Hindi but written using English letters (Roman script). Use this research:
         {research}
         
         Follow these guidelines strictly:
         1. Hook (0-5s): Start with an attention-grabbing opening
         2. Core Content (5-25s): Present key information or insights
         3. Call-to-Action (25-30s): End with an engagement prompt
-
+        
         The script MUST:
-        - Be primarily in Hindi but written using English letters/Roman script (like: "Aaj main aapko ek kahani sunane wala hoon")
-        - Use a conversational, enthusiastic speaking style with natural Hindi expressions
-        - Include natural Hindi interjections and expressions ("Arrey yaar!", "Kya baat hai!", "Socho zara!")
-        - Express genuine excitement ("Main bohot excited hoon aapko yeh batane ke liye!")
-        - Add dramatic pauses ("...aur phir, kuch aisa hua jo...")
-        - Use question marks, exclamation points, and ellipses naturally
-        - Include rhetorical questions in Hindi that engage the viewer
-        - Sound like a real Indian person talking casually, not a robotic script
-        - Use common Hindi phrases and expressions that young Indians use in everyday speech
-        - Be approximately 30 seconds when read aloud at a natural pace
+        - Be primarily in Hindi but written using English letters/Roman script (like: "Kya aapne kabhi socha hai ki zindagi mein safalta kaise milti hai?")
+        - Use a heartfelt, emotional speaking style that connects with the viewer
+        - Include natural Hindi interjections and expressions ("Dosto!", "Socho zara!", "Aur phir...")
+        - Use inspirational Hindi phrases that resonate with young Indians
+        - Ask soul-searching questions that make viewers reflect on their own lives
+        - Sound like a passionate motivational speaker or storyteller, not a script
+        - Include relatable metaphors or examples from everyday life
+        - Build emotional intensity throughout the narrative arc
+        - Be approximately 40 seconds when read aloud at a natural pace
         - DO NOT include any timestamps, markers, or time indicators in the script
         - DO NOT format the response as JSON or with any special formatting
         
         IMPORTANT: Return ONLY the plain text script that would be spoken by the narrator, with no timestamps, formatting, or structure beyond the natural flow of speech. The script should sound completely natural as if spoken by a real person.
         
         Example of the style (but don't copy this content):
-        "Arrey dosto! Kya aap jante hain ki duniya ka sabse bada janwar kaun sa hai? Neeli whale! Yeh itni badi hoti hai ki ek bus se bhi lambi ho sakti hai. Socho zara, kitna amazing hai na? Agar aapko yeh video pasand aaya to like karein aur comment mein batayein ki aapko kaun sa janwar sabse zyada pasand hai!"
+        "Kya aapne kabhi socha hai ki zindagi mein safalta kaise milti hai? Ek baar ki baat hai, ek ladka tha jo har roz school jaane se darta tha... kyunki use padhai mein mushkil aati thi. Lekin usne haar nahi maani. Roz thodi thodi practice ki... aur dekhte hi dekhte, woh class ka sabse tezz student ban gaya! Dosto, zindagi mein koi bhi mushkil itni badi nahi hoti jise mehnat se na jeeta ja sake. Agar aapko bhi koi sapna hai, toh use poora karne ke liye aaj hi pehla kadam uthaiye. Comment mein batayein, aap kaunsa sapna poora karna chahte hain?"
         """
     )
     chain = script_prompt | llm | StrOutputParser()

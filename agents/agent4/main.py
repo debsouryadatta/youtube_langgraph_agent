@@ -16,11 +16,12 @@ load_dotenv()
 # 1. Define State Schema
 class AgentState(TypedDict):
     topic: str
-    script: dict
+    script: str
     title: str
     description: str
     thumbnail_url: str
     audio_path: str
+    detailed_transcript: List[dict]
     images_manifest: List[dict]
     final_video_path: str
     video_id: str
@@ -44,7 +45,7 @@ def thumbnail_agent(state: AgentState):
 
 def audio_agent(state: AgentState):
     result = generate_audio(state)
-    return {"audio_path": result["audio_path"], "script": result["script"]}
+    return {"audio_path": result["audio_path"], "images_manifest": result["images_manifest"], "detailed_transcript": result["detailed_transcript"]}
 
 def images_agent(state: AgentState):
     result = generate_images(state)
@@ -86,7 +87,7 @@ app = workflow.compile()
 # 5. Execution
 if __name__ == "__main__":
     result = app.invoke({
-        "topic": "Arjuna's celestial weapons and how he acquired them from gods"
+        "topic": "The story of Shikhandi and Bhishma's downfall"
     })
     print(f"Final video created at: {result['final_video_path']}")
     # print(f"Final Shorts YT link: https://www.youtube.com/shorts/{result['video_id']}")
