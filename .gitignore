@@ -17,3 +17,6 @@ secrets/
 gcp_tts_key.json
 yt_uploader.json
 youtube-uploader-oauth2.json
+
+# Test files
+rough.json

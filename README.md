@@ -47,6 +47,15 @@
     - Video agent: no services used
     - Uploader agent: YouTube API v3
 
+### Agent 5
+- Specialised for: Tech updates yt shorts, (have to provide audio_path & script as input)
+- Services used:
+    - Input agent: no services used
+    - Audio agent: no services used (Used Elevenlabs tts during input)
+    - Images agent: Google images
+    - Video agent: no services used
+    - Uploader agent: YouTube API v3, this will not be in the workflow
+
 
 <br>
 <br>
@@ -77,6 +86,7 @@
 - gemini_search.py -> Gemini response with google search tool
 - upload_to_youtube.py -> Uploads video to youtube using youtube api v3
 - generate_detailed_transcript.py -> Generates word by word transcript with timestamps
+- demo-caption.json -> Demo transcript json structure for agent4
 
 
 <br>

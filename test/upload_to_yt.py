@@ -34,6 +34,11 @@ VALID_PRIVACY_STATUSES = ("public", "private", "unlisted")
 
 def get_authenticated_service(args):
     flow = flow_from_clientsecrets(CLIENT_SECRETS_FILE, scope=YOUTUBE_UPLOAD_SCOPE)
+    
+    # Add these two critical parameters to get a refresh token
+    flow.params['access_type'] = 'offline'
+    flow.params['approval_prompt'] = 'force'  # In newer API versions, use 'prompt':'consent' instead
+
     storage = Storage(f"secrets/yt-uploader-oauth2.json")
     credentials = storage.get()
 
@@ -101,6 +106,7 @@ def resumable_upload(insert_request):
 # 6. Main Script Execution:
 
 if __name__ == "__main__":
+    print("Starting YouTube upload process...")
     argparser.add_argument("--file", required=True, help="Video file to upload")
     argparser.add_argument("--title", help="Video title", default="Test Title")
     argparser.add_argument("--description", help="Video description", default="Test Description")
@@ -117,3 +123,10 @@ if __name__ == "__main__":
     initialize_upload(youtube, args)
 
 
+# uv run test/upload_to_yt.py \
+#   --file="output/final_videos/video_output_1743625187.00843.mp4" \
+#   --title="Your Video Title" \
+#   --description="Your Video Description" \
+#   --keywords="keyword1,keyword2" \
+#   --category="22" \
+#   --privacyStatus="private"
