@@ -57,7 +57,7 @@ def generate_images(state):
     
     
     # Ensure output directory exists
-    os.makedirs("output/images", exist_ok=True)
+    os.makedirs("assets/images", exist_ok=True)
     
     # Rest of the function remains the same as before
     search_prompt = ChatPromptTemplate.from_template(
@@ -97,7 +97,7 @@ def generate_images(state):
         
         if image_urls:
             # Download the image
-            image_path = f"output/images/{i+1}.jpg"
+            image_path = f"assets/images/{i+1}.jpg"
             try:
                 response = requests.get(image_urls[0], timeout=10)
                 response.raise_for_status()
@@ -121,7 +121,7 @@ def generate_images(state):
                     "start": segment["start"],
                     "duration": segment["duration"],
                     "text": segment["text"],
-                    "url": "output/images/placeholder.jpg",  # Default placeholder
+                    "url": "assets/images/placeholder.jpg",  # Default placeholder
                     "source_url": image_urls[0],             # Image Url which was unable to download
                     "search_term": search_term
                 })
@@ -132,7 +132,7 @@ def generate_images(state):
                 "start": segment["start"],
                 "duration": segment["duration"],
                 "text": segment["text"],
-                "url": "output/images/placeholder.jpg",
+                "url": "assets/images/placeholder.jpg",
                 "source_url": "Not Found",
                 "search_term": search_term
             })

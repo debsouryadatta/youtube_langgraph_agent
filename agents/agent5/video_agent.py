@@ -3,7 +3,7 @@ import numpy as np
 from datetime import datetime
 from moviepy.editor import (
     AudioFileClip, TextClip, CompositeVideoClip, ColorClip, ImageClip,
-    concatenate_audioclips, CompositeAudioClip
+    concatenate_audioclips, CompositeAudioClip, VideoFileClip
 )
 import matplotlib.font_manager as fm
 import re
@@ -83,97 +83,12 @@ def create_word_by_word_clips_from_detailed_transcript(detailed_transcript, font
             method='label'
         )
         
-        # Set timing and position
+        # Set timing and position - Position below center instead of at center
+        # Use lambda function to calculate position dynamically based on clip size
         text_clip = (text_clip
                     .set_start(start_time)
                     .set_duration(duration)
-                    .set_position(("center", "center")))  # Position in the center of the screen
-        
-        word_clips.append(text_clip)
-    
-    return word_clips
-
-def create_word_by_word_clips(text, start_time, duration, fontsize, font_path, shorts_width):
-    """Create a sequence of clips with groups of words appearing and disappearing in sync with audio."""
-    words = split_text_into_words(text)
-    
-    # Handle empty text case
-    if len(words) == 0:
-        return []
-    
-    # Group words into groups of 4 (or fewer for the last group if needed)
-    word_groups = []
-    i = 0
-    current_group = []
-    
-    while i < len(words):
-        # Check if current word is punctuation
-        if words[i] in '.,!?;:…':
-            # If we have words in the current group, add the punctuation to the last word
-            if current_group:
-                current_group[-1] += words[i]
-            i += 1
-            continue
-        
-        # Add the current word to the group
-        current_group.append(words[i])
-        i += 1
-        
-        # If we have 4 words or we've reached the end of the text, finalize the group
-        if len(current_group) == 4 or i >= len(words):
-            # Check if the next word is punctuation and add it to the last word in the group
-            if i < len(words) and words[i] in '.,!?;:…':
-                current_group[-1] += words[i]
-                i += 1
-            
-            # Join the words with spaces and add to word_groups
-            word_groups.append(" ".join(current_group))
-            current_group = []
-    
-    # Calculate timing for each word group
-    # We'll use less of the total duration to create gaps between captions
-    # This ensures captions don't overlap and provides better sync with audio
-    usable_duration = duration * 0.85  # Use only 85% of the total duration for captions
-    
-    # If we have no word groups (rare edge case), return empty list
-    if not word_groups:
-        return []
-        
-    time_per_group = usable_duration / len(word_groups)
-    
-    # Add an initial delay to sync better with audio
-    # This helps ensure the caption appears slightly after the audio starts
-    initial_delay = 0.4  # Increased from 0.2 to 0.4 seconds
-    
-    # Add a gap between captions to prevent overlap
-    gap_between_captions = 0.2  # Increased from 0.1 to 0.2 seconds
-    
-    word_clips = []
-    
-    for i, word_group in enumerate(word_groups):
-        # Calculate timing for this word group with initial delay and gaps
-        # Each subsequent caption starts after the previous one ends plus a gap
-        word_start_time = start_time + initial_delay + (i * (time_per_group + gap_between_captions))
-        
-        # Each word group appears for less than its allocated time to ensure no overlap
-        word_duration = time_per_group * 0.9  # 90% of the allocated time
-        
-        # Create text clip for the word group with increased boldness and better visibility
-        text_clip = TextClip(
-            word_group, 
-            fontsize=fontsize, 
-            color='white', 
-            font=font_path,
-            stroke_width=4,  # Increased stroke width for more boldness
-            stroke_color='black',  # Black outline for better contrast
-            method='label'
-        )
-        
-        # Set timing and position
-        text_clip = (text_clip
-                    .set_start(word_start_time)
-                    .set_duration(word_duration)
-                    .set_position(("center", "center")))  # Position in the center of the screen
+                    .set_position(lambda t: ('center', 1920//2 + 350)))  # Position 150px below the center
         
         word_clips.append(text_clip)
     
@@ -183,6 +98,7 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
     """Create fullscreen image overlays that appear throughout the video,
     ensuring text overlay areas remain visible."""
     image_clips = []
+    transition_clips = []
     
     # Use all segments
     all_segments = images_manifest
@@ -195,6 +111,17 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
     
     # Track the end time of the previous image to ensure no gaps
     previous_end_time = 0
+    
+    # Load the shutter effect transition video
+    shutter_effect_path = "assets/audios/shutter-effect.mp4"
+    if os.path.exists(shutter_effect_path):
+        shutter_effect = VideoFileClip(shutter_effect_path, audio=True)  # Explicitly load audio
+        # Set the transition duration (in seconds)
+        transition_duration = min(0.5, shutter_effect.duration)  # Use at most 0.5 seconds or the full duration if shorter
+    else:
+        print(f"Warning: Shutter effect video not found at {shutter_effect_path}")
+        shutter_effect = None
+        transition_duration = 0
     
     for i, idx in enumerate(selected_indices):
         segment = all_segments[idx]
@@ -249,26 +176,8 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
             x_center = (shorts_width - img_clip.w) / 2
             y_center = (shorts_height - img_clip.h) / 2
             
-            # Create a full screen background
-            img_bg = ColorClip(size=(shorts_width, shorts_height), color=(0, 0, 0))
-            img_bg = img_bg.set_duration(img_duration)
-            
-            # Add zoom-out effect to the image
-            # Start with a larger size and zoom out to normal size
-            def zoom_effect(t):
-                # Calculate zoom factor: start at 2.5x zoom and end at 1.0x
-                # Use the first 0.3 seconds for the zoom effect (extremely fast zoom)
-                zoom_duration = min(0.3, img_duration * 0.15)  # Use at most 15% of duration for zoom
-                
-                if t < zoom_duration:
-                    # Aggressive non-linear interpolation for much faster initial zoom
-                    progress = t / zoom_duration
-                    # Use a cubic function for very rapid initial movement
-                    zoom_factor = 2.5 - (1.5 * (progress * progress * progress))
-                    return zoom_factor
-                else:
-                    # After zoom duration, maintain normal size
-                    return 1.0
+            # Create a full screen background using the image layout
+            img_bg = ImageClip("assets/images/placeholder.jpg").set_duration(img_duration)
             
             # Add vibration effect to the image
             def vibration_effect(t):
@@ -296,29 +205,20 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
                 
                 return (x_offset, y_offset)
             
-            # Apply the zoom effect to the image clip
-            zoomed_img = img_clip.resize(lambda t: zoom_effect(t))
-            
-            # Recalculate position for the zoomed image to keep it centered and add vibration
+            # Define position function for vibration only (no zoom)
             def position_function(t):
-                zoom = zoom_effect(t)
                 vib_x, vib_y = vibration_effect(t)
                 
-                # Calculate new dimensions based on zoom factor
-                new_width = img_clip.w * zoom
-                new_height = img_clip.h * zoom
-                
-                # Use the pre-calculated center positions and adjust for zoom
-                # This ensures the image stays centered during zoom and vibration
-                new_x = x_center - ((new_width - img_clip.w) / 2) + vib_x
-                new_y = y_center - ((new_height - img_clip.h) / 2) + vib_y
+                # Use the pre-calculated center positions and add vibration
+                new_x = x_center + vib_x
+                new_y = y_center + vib_y
                 
                 return (new_x, new_y)
             
             # Create the final positioned image with background
             positioned_img = CompositeVideoClip([
                 img_bg,
-                zoomed_img.set_position(position_function)
+                img_clip.set_position(position_function)
             ])
             
             # Set timing
@@ -327,6 +227,25 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
                             .set_duration(img_duration))
             
             image_clips.append(positioned_img)
+            
+            # Add transition effect at the end of this image (except for the last image)
+            if shutter_effect is not None and i < len(selected_indices) - 1:
+                # Calculate when to start the transition (at the end of the current image minus transition duration)
+                transition_start = img_start + img_duration - transition_duration
+                
+                # Create a copy of the shutter effect for this transition
+                transition_clip = shutter_effect.copy()
+                
+                # Resize the transition to fill the screen
+                transition_clip = transition_clip.resize(height=shorts_height)
+                
+                # Set the timing for the transition
+                transition_clip = (transition_clip
+                                .set_start(transition_start)
+                                .set_duration(transition_duration))
+                
+                # Add the transition clip to our list
+                transition_clips.append(transition_clip)
             
         except Exception as e:
             print(f"Error creating image overlay for {segment['url']}: {e}")
@@ -340,7 +259,8 @@ def create_image_overlays(images_manifest, video_duration, shorts_width, shorts_
             extended_duration = last_clip.duration + (video_duration - previous_end_time)
             image_clips[-1] = last_clip.set_duration(extended_duration)
     
-    return image_clips
+    # Combine image clips and transition clips
+    return image_clips + transition_clips
 
 def create_video_with_overlays(state):
     print("Creating final video with word-by-word highlighting...")
@@ -363,8 +283,8 @@ def create_video_with_overlays(state):
         audio = AudioFileClip(state["audio_path"])
         video_duration = audio.duration
         
-        # Create a black background for the Shorts format
-        background = ColorClip(size=(shorts_width, shorts_height), color=(0, 0, 0))
+        # Create a background using the image layout for the Shorts format
+        background = ImageClip("assets/images/placeholder.jpg")
         background = background.set_duration(video_duration)
         
         # Get fonts
@@ -373,7 +293,7 @@ def create_video_with_overlays(state):
         
         # Create image overlays using the local image paths from images_manifest
         # Create these first so they appear behind the text
-        image_overlays = create_image_overlays(
+        image_and_transition_clips = create_image_overlays(
             state["images_manifest"], 
             video_duration,
             shorts_width,
@@ -390,6 +310,15 @@ def create_video_with_overlays(state):
         
         # Add background music if provided
         final_audio = audio
+        transition_audio_clips = []
+        
+        # Extract audio from transition clips if they have audio
+        for clip in image_and_transition_clips:
+            if hasattr(clip, 'audio') and clip.audio is not None:
+                # Create an audio clip with the same timing as the video clip
+                transition_audio = clip.audio.set_start(clip.start).set_duration(clip.duration)
+                transition_audio_clips.append(transition_audio)
+        
         if "bg_music_path" in state and state["bg_music_path"] and os.path.exists(state["bg_music_path"]):
             try:
                 # Load background music
@@ -411,16 +340,23 @@ def create_video_with_overlays(state):
                 bg_music = bg_music.subclip(0, video_duration)
                 
                 # Mix background music with original audio
-                final_audio = CompositeAudioClip([audio, bg_music])
+                if transition_audio_clips:
+                    # Include transition audio clips in the final audio
+                    final_audio = CompositeAudioClip([audio, bg_music] + transition_audio_clips)
+                else:
+                    final_audio = CompositeAudioClip([audio, bg_music])
                 
                 print(f"Background music added from {state['bg_music_path']}")
             except Exception as e:
                 print(f"Warning: Could not add background music: {e}")
         else:
             print("No background music path provided or file not found, continuing without background music")
+            # Still include transition audio if available
+            if transition_audio_clips:
+                final_audio = CompositeAudioClip([audio] + transition_audio_clips)
         
         # Combine all clips - ORDER MATTERS: background first, then images, then text on top
-        all_clips = [background] + image_overlays + text_overlays
+        all_clips = [background] + image_and_transition_clips + text_overlays
         
         # Create composite video
         composite = CompositeVideoClip(all_clips, size=(shorts_width, shorts_height))
@@ -466,8 +402,8 @@ def create_video_with_overlays(state):
                 bg_music.close()
             
             # Close all image clips
-            if 'image_overlays' in locals():
-                for clip in image_overlays:
+            if 'image_and_transition_clips' in locals():
+                for clip in image_and_transition_clips:
                     clip.close()
             
             # Close all text clips
@@ -475,10 +411,14 @@ def create_video_with_overlays(state):
                 for clip in text_overlays:
                     clip.close()
                     
+            # Close shutter effect clip if it exists
+            if 'shutter_effect' in locals() and shutter_effect is not None:
+                shutter_effect.close()
+                    
         except Exception as e:
             print(f"Warning: Failed to clean up some MoviePy clips: {e}")
 
 if __name__ == "__main__":
-    state = {'topic': 'Recent launch of Gemini 2.5 pro', 'script': '\n    Wow! Google just dropped Gemini 2.5 Pro! Can you believe it? This AI model is absolutely breaking barriers with some incredible features! What are they? First, a million token context window - that\'s huge! Second, advanced reasoning capabilities that blow previous models away. And third, dramatically improved multimodal understanding! \n    \n    What does this mean for users? It can analyze entire codebases, books, or even hours of video in one go! Isn\'t that amazing? But wait - the most impressive feature? It\'s definitely the "function calling" capability that lets developers create complex AI applications faster than ever before! How cool is that?\n    \n    Want to try it yourself? Gemini 2.5 Pro is available right now through Google AI Studio and Vertex AI! Don\'t miss out on experiencing this revolutionary technology!\n    ', 'audio_path': 'output/audios/audio.mp3', 'detailed_transcript': [{'word': 'wow', 'start': 0.161, 'end': 0.641, 'confidence': 0.986, 'punctuated_word': 'Wow,'}, {'word': 'google', 'start': 0.971, 'end': 1.291, 'confidence': 0.998, 'punctuated_word': 'Google'}, {'word': 'just', 'start': 1.351, 'end': 1.621, 'confidence': 1.0, 'punctuated_word': 'just'}, {'word': 'dropped', 'start': 1.621, 'end': 1.881, 'confidence': 1.0, 'punctuated_word': 'dropped'}, {'word': 'gemini', 'start': 1.881, 'end': 2.331, 'confidence': 0.725, 'punctuated_word': 'Gemini'}, {'word': '2.5', 'start': 2.331, 'end': 2.711, 'confidence': 0.997, 'punctuated_word': '2.5'}, {'word': 'pro', 'start': 2.711, 'end': 2.971, 'confidence': 0.995, 'punctuated_word': 'Pro.'}, {'word': 'can', 'start': 3.211, 'end': 3.381, 'confidence': 1.0, 'punctuated_word': 'Can'}, {'word': 'you', 'start': 3.381, 'end': 3.511, 'confidence': 1.0, 'punctuated_word': 'you'}, {'word': 'believe', 'start': 3.511, 'end': 3.801, 'confidence': 1.0, 'punctuated_word': 'believe'}, {'word': 'it', 'start': 3.801, 'end': 3.991, 'confidence': 1.0, 'punctuated_word': 'it?'}, {'word': 'this', 'start': 4.231, 'end': 4.461, 'confidence': 1.0, 'punctuated_word': 'This'}, {'word': 'ai', 'start': 4.541, 'end': 4.731, 'confidence': 0.998, 'punctuated_word': 'AI'}, {'word': 'model', 'start': 4.731, 'end': 5.011, 'confidence': 1.0, 'punctuated_word': 'model'}, {'word': 'is', 'start': 5.011, 'end': 5.311, 'confidence': 1.0, 'punctuated_word': 'is'}, {'word': 'absolutely', 'start': 5.311, 'end': 5.781, 'confidence': 1.0, 'punctuated_word': 'absolutely'}, {'word': 'breaking', 'start': 5.781, 'end': 6.151, 'confidence': 1.0, 'punctuated_word': 'breaking'}, {'word': 'barriers', 'start': 6.151, 'end': 6.551, 'confidence': 1.0, 'punctuated_word': 'barriers'}, {'word': 'with', 'start': 6.551, 'end': 6.721, 'confidence': 1.0, 'punctuated_word': 'with'}, {'word': 'some', 'start': 6.721, 'end': 6.901, 'confidence': 1.0, 'punctuated_word': 'some'}, {'word': 'incredible', 'start': 6.901, 'end': 7.381, 'confidence': 1.0, 'punctuated_word': 'incredible'}, {'word': 'features', 'start': 7.381, 'end': 7.801, 'confidence': 1.0, 'punctuated_word': 'features.'}, {'word': 'what', 'start': 8.111, 'end': 8.311, 'confidence': 1.0, 'punctuated_word': 'What'}, {'word': 'are', 'start': 8.311, 'end': 8.411, 'confidence': 1.0, 'punctuated_word': 'are'}, {'word': 'they', 'start': 8.411, 'end': 8.641, 'confidence': 1.0, 'punctuated_word': 'they?'}, {'word': 'first', 'start': 8.891, 'end': 9.171, 'confidence': 1.0, 'punctuated_word': 'First,'}, {'word': 'a', 'start': 9.221, 'end': 9.281, 'confidence': 1.0, 'punctuated_word': 'a'}, {'word': 'million', 'start': 9.281, 'end': 9.591, 'confidence': 1.0, 'punctuated_word': 'million'}, {'word': 'token', 'start': 9.591, 'end': 9.861, 'confidence': 1.0, 'punctuated_word': 'token'}, {'word': 'context', 'start': 9.861, 'end': 10.241, 'confidence': 1.0, 'punctuated_word': 'context'}, {'word': 'window', 'start': 10.241, 'end': 10.531, 'confidence': 1.0, 'punctuated_word': 'window.'}, {'word': "that's", 'start': 10.621, 'end': 10.821, 'confidence': 1.0, 'punctuated_word': "That's"}, {'word': 'huge', 'start': 10.821, 'end': 11.111, 'confidence': 1.0, 'punctuated_word': 'huge.'}, {'word': 'second', 'start': 11.421, 'end': 11.791, 'confidence': 1.0, 'punctuated_word': 'Second,'}, {'word': 'advanced', 'start': 11.881, 'end': 12.321, 'confidence': 1.0, 'punctuated_word': 'advanced'}, {'word': 'reasoning', 'start': 12.321, 'end': 12.731, 'confidence': 1.0, 'punctuated_word': 'reasoning'}, {'word': 'capabilities', 'start': 12.731, 'end': 13.341, 'confidence': 1.0, 'punctuated_word': 'capabilities'}, {'word': 'that', 'start': 13.341, 'end': 13.471, 'confidence': 1.0, 'punctuated_word': 'that'}, {'word': 'blow', 'start': 13.471, 'end': 13.701, 'confidence': 1.0, 'punctuated_word': 'blow'}, {'word': 'previous', 'start': 13.701, 'end': 14.031, 'confidence': 1.0, 'punctuated_word': 'previous'}, {'word': 'models', 'start': 14.031, 'end': 14.331, 'confidence': 1.0, 'punctuated_word': 'models'}, {'word': 'away', 'start': 14.331, 'end': 14.591, 'confidence': 1.0, 'punctuated_word': 'away.'}, {'word': 'and', 'start': 14.831, 'end': 15.0, 'confidence': 1.0, 'punctuated_word': 'And'}, {'word': 'third', 'start': 15.0, 'end': 15.711, 'confidence': 1.0, 'punctuated_word': 'third,'}, {'word': 'dramatically', 'start': 15.711, 'end': 16.341, 'confidence': 1.0, 'punctuated_word': 'dramatically'}, {'word': 'improved', 'start': 16.341, 'end': 16.781, 'confidence': 1.0, 'punctuated_word': 'improved'}, {'word': 'multimodal', 'start': 16.781, 'end': 17.441, 'confidence': 1.0, 'punctuated_word': 'multimodal'}, {'word': 'understanding', 'start': 17.441, 'end': 18.091, 'confidence': 1.0, 'punctuated_word': 'understanding.'}, {'word': 'what', 'start': 18.381, 'end': 18.591, 'confidence': 1.0, 'punctuated_word': 'What'}, {'word': 'does', 'start': 18.591, 'end': 18.741, 'confidence': 1.0, 'punctuated_word': 'does'}, {'word': 'this', 'start': 18.741, 'end': 18.921, 'confidence': 1.0, 'punctuated_word': 'this'}, {'word': 'mean', 'start': 18.921, 'end': 19.121, 'confidence': 1.0, 'punctuated_word': 'mean'}, {'word': 'for', 'start': 19.121, 'end': 19.261, 'confidence': 1.0, 'punctuated_word': 'for'}, {'word': 'users', 'start': 19.261, 'end': 19.691, 'confidence': 1.0, 'punctuated_word': 'users?'}, {'word': 'it', 'start': 19.841, 'end': 19.951, 'confidence': 1.0, 'punctuated_word': 'It'}, {'word': 'can', 'start': 19.951, 'end': 20.151, 'confidence': 1.0, 'punctuated_word': 'can'}, {'word': 'analyze', 'start': 20.151, 'end': 20.611, 'confidence': 1.0, 'punctuated_word': 'analyze'}, {'word': 'entire', 'start': 20.611, 'end': 20.971, 'confidence': 1.0, 'punctuated_word': 'entire'}, {'word': 'code', 'start': 21.011, 'end': 21.261, 'confidence': 1.0, 'punctuated_word': 'code'}, {'word': 'bases', 'start': 21.261, 'end': 21.691, 'confidence': 1.0, 'punctuated_word': 'bases,'}, {'word': 'books', 'start': 21.821, 'end': 22.461, 'confidence': 1.0, 'punctuated_word': 'books,'}, {'word': 'or', 'start': 22.581, 'end': 22.681, 'confidence': 1.0, 'punctuated_word': 'or'}, {'word': 'even', 'start': 22.681, 'end': 22.941, 'confidence': 1.0, 'punctuated_word': 'even'}, {'word': 'hours', 'start': 22.941, 'end': 23.231, 'confidence': 1.0, 'punctuated_word': 'hours'}, {'word': 'of', 'start': 23.231, 'end': 23.311, 'confidence': 1.0, 'punctuated_word': 'of'}, {'word': 'video', 'start': 23.311, 'end': 23.641, 'confidence': 1.0, 'punctuated_word': 'video'}, {'word': 'in', 'start': 23.641, 'end': 23.761, 'confidence': 1.0, 'punctuated_word': 'in'}, {'word': 'one', 'start': 23.761, 'end': 23.941, 'confidence': 1.0, 'punctuated_word': 'one'}, {'word': 'go', 'start': 23.941, 'end': 24.191, 'confidence': 1.0, 'punctuated_word': 'go.'}, {'word': "isn't", 'start': 24.521, 'end': 24.781, 'confidence': 1.0, 'punctuated_word': "Isn't"}, {'word': 'that', 'start': 24.781, 'end': 24.961, 'confidence': 1.0, 'punctuated_word': 'that'}, {'word': 'amazing', 'start': 24.961, 'end': 25.401, 'confidence': 1.0, 'punctuated_word': 'amazing?'}, {'word': 'but', 'start': 25.641, 'end': 25.851, 'confidence': 1.0, 'punctuated_word': 'But'}, {'word': 'wait', 'start': 25.851, 'end': 26.161, 'confidence': 1.0, 'punctuated_word': 'wait.'}, {'word': 'the', 'start': 26.341, 'end': 26.441, 'confidence': 1.0, 'punctuated_word': 'The'}, {'word': 'most', 'start': 26.441, 'end': 26.711, 'confidence': 1.0, 'punctuated_word': 'most'}, {'word': 'impressive', 'start': 26.711, 'end': 27.221, 'confidence': 1.0, 'punctuated_word': 'impressive'}, {'word': 'feature', 'start': 27.221, 'end': 27.561, 'confidence': 1.0, 'punctuated_word': 'feature?'}, {'word': "it's", 'start': 27.841, 'end': 28.051, 'confidence': 1.0, 'punctuated_word': "It's"}, {'word': 'definitely', 'start': 28.051, 'end': 28.491, 'confidence': 1.0, 'punctuated_word': 'definitely'}, {'word': 'the', 'start': 28.491, 'end': 28.611, 'confidence': 1.0, 'punctuated_word': 'the'}, {'word': 'function', 'start': 28.611, 'end': 29.061, 'confidence': 1.0, 'punctuated_word': 'function'}, {'word': 'calling', 'start': 29.061, 'end': 29.411, 'confidence': 1.0, 'punctuated_word': 'calling'}, {'word': 'capability', 'start': 29.411, 'end': 30.381, 'confidence': 1.0, 'punctuated_word': 'capability'}, {'word': 'that', 'start': 30.381, 'end': 30.531, 'confidence': 1.0, 'punctuated_word': 'that'}, {'word': 'lets', 'start': 30.531, 'end': 30.731, 'confidence': 1.0, 'punctuated_word': 'lets'}, {'word': 'developers', 'start': 30.731, 'end': 31.161, 'confidence': 1.0, 'punctuated_word': 'developers'}, {'word': 'create', 'start': 31.161, 'end': 31.511, 'confidence': 1.0, 'punctuated_word': 'create'}, {'word': 'complex', 'start': 31.511, 'end': 31.981, 'confidence': 1.0, 'punctuated_word': 'complex'}, {'word': 'ai', 'start': 32.051, 'end': 32.251, 'confidence': 1.0, 'punctuated_word': 'AI'}, {'word': 'applications', 'start': 32.251, 'end': 33.1, 'confidence': 1.0, 'punctuated_word': 'applications'}, {'word': 'faster', 'start': 33.1, 'end': 33.411, 'confidence': 1.0, 'punctuated_word': 'faster'}, {'word': 'than', 'start': 33.411, 'end': 33.621, 'confidence': 1.0, 'punctuated_word': 'than'}, {'word': 'ever', 'start': 33.621, 'end': 33.861, 'confidence': 1.0, 'punctuated_word': 'ever'}, {'word': 'before', 'start': 33.861, 'end': 34.241, 'confidence': 1.0, 'punctuated_word': 'before.'}, {'word': 'how', 'start': 34.611, 'end': 34.811, 'confidence': 1.0, 'punctuated_word': 'How'}, {'word': 'cool', 'start': 34.811, 'end': 35.071, 'confidence': 1.0, 'punctuated_word': 'cool'}, {'word': 'is', 'start': 35.071, 'end': 35.171, 'confidence': 1.0, 'punctuated_word': 'is'}, {'word': 'that', 'start': 35.171, 'end': 35.421, 'confidence': 1.0, 'punctuated_word': 'that?'}, {'word': 'want', 'start': 35.551, 'end': 35.751, 'confidence': 1.0, 'punctuated_word': 'Want'}, {'word': 'to', 'start': 35.751, 'end': 35.831, 'confidence': 1.0, 'punctuated_word': 'to'}, {'word': 'try', 'start': 35.831, 'end': 36.041, 'confidence': 1.0, 'punctuated_word': 'try'}, {'word': 'it', 'start': 36.041, 'end': 36.121, 'confidence': 1.0, 'punctuated_word': 'it'}, {'word': 'yourself', 'start': 36.121, 'end': 36.561, 'confidence': 1.0, 'punctuated_word': 'yourself?'}, {'word': 'gemini', 'start': 36.741, 'end': 37.131, 'confidence': 0.85, 'punctuated_word': 'Gemini'}, {'word': '2.5', 'start': 37.181, 'end': 37.531, 'confidence': 0.995, 'punctuated_word': '2.5'}, {'word': 'pro', 'start': 37.531, 'end': 37.751, 'confidence': 1.0, 'punctuated_word': 'Pro'}, {'word': 'is', 'start': 37.751, 'end': 37.861, 'confidence': 1.0, 'punctuated_word': 'is'}, {'word': 'available', 'start': 37.861, 'end': 38.331, 'confidence': 1.0, 'punctuated_word': 'available'}, {'word': 'right', 'start': 38.331, 'end': 38.581, 'confidence': 1.0, 'punctuated_word': 'right'}, {'word': 'now', 'start': 38.581, 'end': 38.831, 'confidence': 1.0, 'punctuated_word': 'now'}, {'word': 'through', 'start': 38.831, 'end': 39.051, 'confidence': 1.0, 'punctuated_word': 'through'}, {'word': 'google', 'start': 39.051, 'end': 39.321, 'confidence': 1.0, 'punctuated_word': 'Google'}, {'word': 'ai', 'start': 39.321, 'end': 39.531, 'confidence': 1.0, 'punctuated_word': 'AI'}, {'word': 'studio', 'start': 39.531, 'end': 40.271, 'confidence': 1.0, 'punctuated_word': 'Studio'}, {'word': 'and', 'start': 40.271, 'end': 40.451, 'confidence': 1.0, 'punctuated_word': 'and'}, {'word': 'vertex', 'start': 40.451, 'end': 40.831, 'confidence': 1.0, 'punctuated_word': 'Vertex'}, {'word': 'ai', 'start': 40.831, 'end': 41.131, 'confidence': 1.0, 'punctuated_word': 'AI.'}, {'word': "don't", 'start': 41.491, 'end': 41.781, 'confidence': 1.0, 'punctuated_word': "Don't"}, {'word': 'miss', 'start': 41.781, 'end': 41.991, 'confidence': 1.0, 'punctuated_word': 'miss'}, {'word': 'out', 'start': 41.991, 'end': 42.221, 'confidence': 1.0, 'punctuated_word': 'out'}, {'word': 'on', 'start': 42.221, 'end': 42.341, 'confidence': 1.0, 'punctuated_word': 'on'}, {'word': 'experiencing', 'start': 42.341, 'end': 42.881, 'confidence': 1.0, 'punctuated_word': 'experiencing'}, {'word': 'this', 'start': 42.881, 'end': 43.071, 'confidence': 1.0, 'punctuated_word': 'this'}, {'word': 'revolutionary', 'start': 43.071, 'end': 43.711, 'confidence': 1.0, 'punctuated_word': 'revolutionary'}, {'word': 'technology', 'start': 43.711, 'end': 44.261, 'confidence': 1.0, 'punctuated_word': 'technology.'}], 'images_manifest': [{'start': '00:00', 'duration': '00:06', 'text': 'Wow, Google just dropped Gemini 1.5 Pro. Can you believe it? This AI model is absolutely breaking barriers', 'url': 'output/images/1.jpg', 'source_url': 'https://i.ytimg.com/vi/wa0MT8OwHuk/maxresdefault.jpg', 'search_term': 'Gemini 1.5 Pro launch image vertical high quality'}, {'start': '00:06', 'duration': '00:05', 'text': "with some incredible features. What are they? First, a million token context window, that's huge.", 'url': 'output/images/2.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro context window vertical high quality'}, {'start': '00:11', 'duration': '00:04', 'text': 'Second, advanced reasoning capabilities that blow previous models away. And third,', 'url': 'output/images/3.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro reasoning capabilities vertical high quality'}, {'start': '00:15', 'duration': '00:04', 'text': 'dramatically improved multimodal understanding. What does this mean for users?', 'url': 'output/images/4.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro multimodal examples vertical high quality'}, {'start': '00:19', 'duration': '00:05', 'text': 'It can analyze entire code bases, books, or even hours of video in one go.', 'url': 'output/images/5.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro analysis capabilities vertical high quality'}, {'start': '00:24', 'duration': '00:05', 'text': "Isn't that amazing? But wait, the most impressive feature? It's definitely the function calling capability", 'url': 'output/images/6.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro function calling vertical high quality'}, {'start': '00:29', 'duration': '00:05', 'text': 'that lets developers create complex AI applications faster than ever before.', 'url': 'output/images/7.jpg', 'source_url': 'https://res.infoq.com/news/2025/03/gemini-2-5-pro/en/headerimage/generatedHeaderImage-1743189035105.jpg', 'search_term': 'Gemini 2.5 Pro applications development vertical high quality'}, {'start': '00:34', 'duration': '00:05', 'text': 'How cool is that? Want to try it yourself? Gemini 1.5 Pro is available right now through Google AI Studio', 'url': 'output/images/8.jpg', 'source_url': 'https://i.ytimg.com/vi/wa0MT8OwHuk/maxresdefault.jpg', 'search_term': 'Gemini 1.5 Pro Google AI Studio vertical high quality'}, {'start': '00:39', 'duration': '00:05', 'text': "and Vertex AI. Don't miss out on experiencing this revolutionary technology.", 'url': 'output/images/9.jpg', 'source_url': 'https://res.infoq.com/news/2025/03/gemini-2-5-pro/en/headerimage/generatedHeaderImage-1743189035105.jpg', 'search_term': 'Gemini 2.5 Pro interface vertical high quality'}], 'bg_music_path': 'assets/bg_music.mp3'}
+    state = {'topic': 'Recent launch of Gemini 2.5 pro', 'script': "\n    Hey tech enthusiasts! Guess what? Meta just dropped Llama 4... and wow, it's a game-changer! They've released two initial models: Scout and Maverick.\n\n    Scout runs on a single H100 GPU but packs a punch with 17 billion active parameters and—get this—a context window of 10 MILLION tokens! That's insane for document processing.\n\n    Maverick is the multilingual beast with 400 billion total parameters supporting 12 languages and amazing multimodal abilities.\n\n    But here's the juicy part... they're still training the most powerful version called 'Behemoth' with a mind-blowing 2 TRILLION parameters! Can you imagine what that will do?\n\n    What makes Llama 4 special? It uses a Mixture of Experts architecture and early fusion for handling text, images, and video seamlessly.\n\n    The best part? It's open-source! You can download it now from llama.com or try it on Meta's platforms.\n\n    Ready to build something amazing with Llama 4? Let me know in the comments!\n    ", 'audio_path': 'assets/audios/audio.mp3', 'detailed_transcript': [{'word': 'Hey', 'start': 0.066, 'end': 0.286, 'confidence': 0.98, 'punctuated_word': 'Hey'}, {'word': 'tech', 'start': 0.286, 'end': 0.516, 'confidence': 0.99, 'punctuated_word': 'tech'}, {'word': 'enthusiasts,', 'start': 0.516, 'end': 1.166, 'confidence': 0.99, 'punctuated_word': 'enthusiasts,'}, {'word': 'guess', 'start': 1.306, 'end': 1.616, 'confidence': 0.99, 'punctuated_word': 'guess'}, {'word': 'what?', 'start': 1.616, 'end': 1.886, 'confidence': 0.99, 'punctuated_word': 'what?'}, {'word': 'Meta', 'start': 1.976, 'end': 2.256, 'confidence': 0.99, 'punctuated_word': 'Meta'}, {'word': 'just', 'start': 2.256, 'end': 2.496, 'confidence': 0.99, 'punctuated_word': 'just'}, {'word': 'dropped', 'start': 2.496, 'end': 2.806, 'confidence': 0.99, 'punctuated_word': 'dropped'}, {'word': 'Llama', 'start': 2.956, 'end': 3.246, 'confidence': 0.98, 'punctuated_word': 'Llama'}, {'word': '4,', 'start': 3.246, 'end': 3.456, 'confidence': 0.98, 'punctuated_word': '4,'}, {'word': 'and', 'start': 3.706, 'end': 3.866, 'confidence': 0.99, 'punctuated_word': 'and'}, {'word': 'wow,', 'start': 4.096, 'end': 4.356, 'confidence': 0.99, 'punctuated_word': 'wow,'}, {'word': "it's", 'start': 4.356, 'end': 4.526, 'confidence': 0.99, 'punctuated_word': "it's"}, {'word': 'a', 'start': 4.526, 'end': 4.576, 'confidence': 0.99, 'punctuated_word': 'a'}, {'word': 'game', 'start': 4.636, 'end': 4.896, 'confidence': 0.99, 'punctuated_word': 'game'}, {'word': 'changer.', 'start': 4.896, 'end': 5.316, 'confidence': 0.99, 'punctuated_word': 'changer.'}, {'word': "They've", 'start': 5.426, 'end': 5.686, 'confidence': 0.99, 'punctuated_word': "They've"}, {'word': 'released', 'start': 5.686, 'end': 6.086, 'confidence': 0.99, 'punctuated_word': 'released'}, {'word': 'two', 'start': 6.086, 'end': 6.266, 'confidence': 0.99, 'punctuated_word': 'two'}, {'word': 'initial', 'start': 6.266, 'end': 6.656, 'confidence': 0.99, 'punctuated_word': 'initial'}, {'word': 'models,', 'start': 6.656, 'end': 7.046, 'confidence': 0.99, 'punctuated_word': 'models,'}, {'word': 'Scout', 'start': 7.136, 'end': 7.486, 'confidence': 0.99, 'punctuated_word': 'Scout'}, {'word': 'and', 'start': 7.486, 'end': 7.626, 'confidence': 0.99, 'punctuated_word': 'and'}, {'word': 'Maverick.', 'start': 7.626, 'end': 8.096, 'confidence': 0.99, 'punctuated_word': 'Maverick.'}, {'word': 'Scout', 'start': 8.216, 'end': 8.566, 'confidence': 0.99, 'punctuated_word': 'Scout'}, {'word': 'runs', 'start': 8.566, 'end': 8.816, 'confidence': 0.99, 'punctuated_word': 'runs'}, {'word': 'on', 'start': 8.816, 'end': 8.916, 'confidence': 0.99, 'punctuated_word': 'on'}, {'word': 'a', 'start': 8.916, 'end': 8.966, 'confidence': 0.99, 'punctuated_word': 'a'}, {'word': 'single', 'start': 9.066, 'end': 9.396, 'confidence': 0.99, 'punctuated_word': 'single'}, {'word': 'H100', 'start': 9.516, 'end': 9.846, 'confidence': 0.95, 'punctuated_word': 'H100'}, {'word': 'GPU', 'start': 9.846, 'end': 10.236, 'confidence': 0.99, 'punctuated_word': 'GPU'}, {'word': 'but', 'start': 10.466, 'end': 10.666, 'confidence': 0.99, 'punctuated_word': 'but'}, {'word': 'packs', 'start': 10.716, 'end': 11.016, 'confidence': 0.99, 'punctuated_word': 'packs'}, {'word': 'a', 'start': 11.016, 'end': 11.046, 'confidence': 0.99, 'punctuated_word': 'a'}, {'word': 'punch', 'start': 11.126, 'end': 11.416, 'confidence': 0.99, 'punctuated_word': 'punch'}, {'word': 'with', 'start': 11.416, 'end': 11.606, 'confidence': 0.99, 'punctuated_word': 'with'}, {'word': '17', 'start': 11.766, 'end': 12.146, 'confidence': 0.96, 'punctuated_word': '17'}, {'word': 'billion', 'start': 12.216, 'end': 12.566, 'confidence': 0.99, 'punctuated_word': 'billion'}, {'word': 'active', 'start': 12.566, 'end': 12.916, 'confidence': 0.99, 'punctuated_word': 'active'}, {'word': 'parameters', 'start': 12.916, 'end': 13.446, 'confidence': 0.99, 'punctuated_word': 'parameters'}, {'word': 'and', 'start': 13.446, 'end': 13.616, 'confidence': 0.99, 'punctuated_word': 'and'}, {'word': 'get', 'start': 13.616, 'end': 13.826, 'confidence': 0.99, 'punctuated_word': 'get'}, {'word': 'this,', 'start': 13.826, 'end': 14.066, 'confidence': 0.99, 'punctuated_word': 'this,'}, {'word': 'a', 'start': 14.246, 'end': 14.346, 'confidence': 0.99, 'punctuated_word': 'a'}, {'word': 'context', 'start': 14.466, 'end': 14.866, 'confidence': 0.99, 'punctuated_word': 'context'}, {'word': 'window', 'start': 14.866, 'end': 15.186, 'confidence': 0.99, 'punctuated_word': 'window'}, {'word': 'of', 'start': 15.186, 'end': 15.316, 'confidence': 0.99, 'punctuated_word': 'of'}, {'word': '10', 'start': 15.386, 'end': 15.666, 'confidence': 0.99, 'punctuated_word': '10'}, {'word': 'million', 'start': 15.666, 'end': 16.006, 'confidence': 0.99, 'punctuated_word': 'million'}, {'word': 'tokens.', 'start': 16.006, 'end': 16.486, 'confidence': 0.99, 'punctuated_word': 'tokens.'}, {'word': "That's", 'start': 16.746, 'end': 16.996, 'confidence': 0.99, 'punctuated_word': "That's"}, {'word': 'insane', 'start': 17.076, 'end': 17.426, 'confidence': 0.99, 'punctuated_word': 'insane'}, {'word': 'for', 'start': 17.426, 'end': 17.576, 'confidence': 0.99, 'punctuated_word': 'for'}, {'word': 'document', 'start': 17.636, 'end': 18.016, 'confidence': 0.99, 'punctuated_word': 'document'}, {'word': 'processing.', 'start': 18.016, 'end': 18.486, 'confidence': 0.99, 'punctuated_word': 'processing.'}, {'word': 'Maverick', 'start': 18.686, 'end': 19.076, 'confidence': 0.99, 'punctuated_word': 'Maverick'}, {'word': 'is', 'start': 19.076, 'end': 19.206, 'confidence': 0.99, 'punctuated_word': 'is'}, {'word': 'the', 'start': 19.206, 'end': 19.326, 'confidence': 0.99, 'punctuated_word': 'the'}, {'word': 'multilingual', 'start': 19.396, 'end': 20.006, 'confidence': 0.99, 'punctuated_word': 'multilingual'}, {'word': 'beast', 'start': 20.076, 'end': 20.396, 'confidence': 0.99, 'punctuated_word': 'beast'}, {'word': 'with', 'start': 20.396, 'end': 20.586, 'confidence': 0.99, 'punctuated_word': 'with'}, {'word': '400', 'start': 20.776, 'end': 21.216, 'confidence': 0.98, 'punctuated_word': '400'}, {'word': 'billion', 'start': 21.216, 'end': 21.536, 'confidence': 0.99, 'punctuated_word': 'billion'}, {'word': 'total', 'start': 21.536, 'end': 21.876, 'confidence': 0.99, 'punctuated_word': 'total'}, {'word': 'parameters,', 'start': 21.876, 'end': 22.446, 'confidence': 0.99, 'punctuated_word': 'parameters,'}, {'word': 'supporting', 'start': 22.556, 'end': 22.956, 'confidence': 0.99, 'punctuated_word': 'supporting'}, {'word': '12', 'start': 23.066, 'end': 23.356, 'confidence': 0.98, 'punctuated_word': '12'}, {'word': 'languages', 'start': 23.356, 'end': 23.896, 'confidence': 0.99, 'punctuated_word': 'languages'}, {'word': 'and', 'start': 24.056, 'end': 24.226, 'confidence': 0.99, 'punctuated_word': 'and'}, {'word': 'amazing', 'start': 24.356, 'end': 24.766, 'confidence': 0.99, 'punctuated_word': 'amazing'}, {'word': 'multimodal', 'start': 24.836, 'end': 25.296, 'confidence': 0.99, 'punctuated_word': 'multimodal'}, {'word': 'abilities.', 'start': 25.296, 'end': 25.806, 'confidence': 0.99, 'punctuated_word': 'abilities.'}, {'word': 'But', 'start': 26.196, 'end': 26.386, 'confidence': 0.99, 'punctuated_word': 'But'}, {'word': "here's", 'start': 26.386, 'end': 26.646, 'confidence': 0.99, 'punctuated_word': "here's"}, {'word': 'the', 'start': 26.646, 'end': 26.746, 'confidence': 0.99, 'punctuated_word': 'the'}, {'word': 'juicy', 'start': 26.746, 'end': 27.006, 'confidence': 0.99, 'punctuated_word': 'juicy'}, {'word': 'part.', 'start': 27.006, 'end': 27.296, 'confidence': 0.99, 'punctuated_word': 'part.'}, {'word': "They're", 'start': 27.546, 'end': 27.726, 'confidence': 0.99, 'punctuated_word': "They're"}, {'word': 'still', 'start': 27.726, 'end': 27.996, 'confidence': 0.99, 'punctuated_word': 'still'}, {'word': 'training', 'start': 27.996, 'end': 28.346, 'confidence': 0.99, 'punctuated_word': 'training'}, {'word': 'the', 'start': 28.346, 'end': 28.456, 'confidence': 0.99, 'punctuated_word': 'the'}, {'word': 'most', 'start': 28.516, 'end': 28.796, 'confidence': 0.99, 'punctuated_word': 'most'}, {'word': 'powerful', 'start': 28.866, 'end': 29.266, 'confidence': 0.99, 'punctuated_word': 'powerful'}, {'word': 'version', 'start': 29.266, 'end': 29.596, 'confidence': 0.99, 'punctuated_word': 'version'}, {'word': 'called', 'start': 29.596, 'end': 29.866, 'confidence': 0.99, 'punctuated_word': 'called'}, {'word': 'Behemoth', 'start': 29.926, 'end': 30.436, 'confidence': 0.98, 'punctuated_word': 'Behemoth'}, {'word': 'with', 'start': 30.646, 'end': 30.816, 'confidence': 0.99, 'punctuated_word': 'with'}, {'word': 'a', 'start': 30.816, 'end': 30.846, 'confidence': 0.99, 'punctuated_word': 'a'}, {'word': 'mind-blowing', 'start': 30.936, 'end': 31.566, 'confidence': 0.99, 'punctuated_word': 'mind-blowing'}, {'word': '2', 'start': 31.626, 'end': 31.816, 'confidence': 0.98, 'punctuated_word': '2'}, {'word': 'trillion', 'start': 31.816, 'end': 32.176, 'confidence': 0.99, 'punctuated_word': 'trillion'}, {'word': 'parameters.', 'start': 32.176, 'end': 32.756, 'confidence': 0.99, 'punctuated_word': 'parameters.'}, {'word': 'Can', 'start': 32.916, 'end': 33.076, 'confidence': 0.99, 'punctuated_word': 'Can'}, {'word': 'you', 'start': 33.076, 'end': 33.206, 'confidence': 0.99, 'punctuated_word': 'you'}, {'word': 'imagine', 'start': 33.206, 'end': 33.646, 'confidence': 0.99, 'punctuated_word': 'imagine'}, {'word': 'what', 'start': 33.646, 'end': 33.836, 'confidence': 0.99, 'punctuated_word': 'what'}, {'word': 'that', 'start': 33.836, 'end': 33.996, 'confidence': 0.99, 'punctuated_word': 'that'}, {'word': 'will', 'start': 33.996, 'end': 34.166, 'confidence': 0.99, 'punctuated_word': 'will'}, {'word': 'do?', 'start': 34.166, 'end': 34.376, 'confidence': 0.99, 'punctuated_word': 'do?'}, {'word': 'What', 'start': 34.486, 'end': 34.686, 'confidence': 0.99, 'punctuated_word': 'What'}, {'word': 'makes', 'start': 34.686, 'end': 34.966, 'confidence': 0.99, 'punctuated_word': 'makes'}, {'word': 'Llama', 'start': 34.966, 'end': 35.266, 'confidence': 0.97, 'punctuated_word': 'Llama'}, {'word': '4', 'start': 35.266, 'end': 35.406, 'confidence': 0.97, 'punctuated_word': '4'}, {'word': 'special?', 'start': 35.406, 'end': 35.846, 'confidence': 0.99, 'punctuated_word': 'special?'}, {'word': 'It', 'start': 36.186, 'end': 36.306, 'confidence': 0.99, 'punctuated_word': 'It'}, {'word': 'uses', 'start': 36.306, 'end': 36.616, 'confidence': 0.99, 'punctuated_word': 'uses'}, {'word': 'a', 'start': 36.616, 'end': 36.646, 'confidence': 0.99, 'punctuated_word': 'a'}, {'word': 'mixture', 'start': 36.746, 'end': 37.096, 'confidence': 0.99, 'punctuated_word': 'mixture'}, {'word': 'of', 'start': 37.096, 'end': 37.196, 'confidence': 0.99, 'punctuated_word': 'of'}, {'word': 'experts', 'start': 37.276, 'end': 37.766, 'confidence': 0.99, 'punctuated_word': 'experts'}, {'word': 'architecture', 'start': 37.766, 'end': 38.366, 'confidence': 0.99, 'punctuated_word': 'architecture'}, {'word': 'and', 'start': 38.366, 'end': 38.516, 'confidence': 0.99, 'punctuated_word': 'and'}, {'word': 'early', 'start': 38.516, 'end': 38.806, 'confidence': 0.99, 'punctuated_word': 'early'}, {'word': 'fusion', 'start': 38.806, 'end': 39.256, 'confidence': 0.99, 'punctuated_word': 'fusion'}, {'word': 'for', 'start': 39.386, 'end': 39.546, 'confidence': 0.99, 'punctuated_word': 'for'}, {'word': 'handling', 'start': 39.546, 'end': 39.936, 'confidence': 0.99, 'punctuated_word': 'handling'}, {'word': 'text,', 'start': 39.936, 'end': 40.266, 'confidence': 0.99, 'punctuated_word': 'text,'}, {'word': 'images,', 'start': 40.386, 'end': 40.766, 'confidence': 0.99, 'punctuated_word': 'images,'}, {'word': 'and', 'start': 40.766, 'end': 40.906, 'confidence': 0.99, 'punctuated_word': 'and'}, {'word': 'video', 'start': 40.906, 'end': 41.226, 'confidence': 0.99, 'punctuated_word': 'video'}, {'word': 'seamlessly.', 'start': 41.226, 'end': 41.756, 'confidence': 0.99, 'punctuated_word': 'seamlessly.'}, {'word': 'The', 'start': 41.966, 'end': 42.106, 'confidence': 0.99, 'punctuated_word': 'The'}, {'word': 'best', 'start': 42.106, 'end': 42.376, 'confidence': 0.99, 'punctuated_word': 'best'}, {'word': 'part?', 'start': 42.376, 'end': 42.706, 'confidence': 0.99, 'punctuated_word': 'part?'}, {'word': "It's", 'start': 42.926, 'end': 43.126, 'confidence': 0.99, 'punctuated_word': "It's"}, {'word': 'open', 'start': 43.226, 'end': 43.476, 'confidence': 0.99, 'punctuated_word': 'open'}, {'word': 'source.', 'start': 43.476, 'end': 43.876, 'confidence': 0.99, 'punctuated_word': 'source.'}, {'word': 'You', 'start': 44.086, 'end': 44.236, 'confidence': 0.99, 'punctuated_word': 'You'}, {'word': 'can', 'start': 44.236, 'end': 44.406, 'confidence': 0.99, 'punctuated_word': 'can'}, {'word': 'download', 'start': 44.406, 'end': 44.776, 'confidence': 0.99, 'punctuated_word': 'download'}, {'word': 'it', 'start': 44.776, 'end': 44.876, 'confidence': 0.99, 'punctuated_word': 'it'}, {'word': 'now', 'start': 44.876, 'end': 45.086, 'confidence': 0.99, 'punctuated_word': 'now'}, {'word': 'from', 'start': 45.086, 'end': 45.306, 'confidence': 0.99, 'punctuated_word': 'from'}, {'word': 'llama.com', 'start': 45.386, 'end': 46.016, 'confidence': 0.96, 'punctuated_word': 'llama.com'}, {'word': 'or', 'start': 46.186, 'end': 46.336, 'confidence': 0.99, 'punctuated_word': 'or'}, {'word': 'try', 'start': 46.336, 'end': 46.576, 'confidence': 0.99, 'punctuated_word': 'try'}, {'word': 'it', 'start': 46.576, 'end': 46.696, 'confidence': 0.99, 'punctuated_word': 'it'}, {'word': 'on', 'start': 46.696, 'end': 46.836, 'confidence': 0.99, 'punctuated_word': 'on'}, {'word': "Meta's", 'start': 46.916, 'end': 47.286, 'confidence': 0.99, 'punctuated_word': "Meta's"}, {'word': 'platforms.', 'start': 47.286, 'end': 47.826, 'confidence': 0.99, 'punctuated_word': 'platforms.'}, {'word': 'Ready', 'start': 48.066, 'end': 48.356, 'confidence': 0.99, 'punctuated_word': 'Ready'}, {'word': 'to', 'start': 48.356, 'end': 48.456, 'confidence': 0.99, 'punctuated_word': 'to'}, {'word': 'build', 'start': 48.456, 'end': 48.706, 'confidence': 0.99, 'punctuated_word': 'build'}, {'word': 'something', 'start': 48.706, 'end': 49.036, 'confidence': 0.99, 'punctuated_word': 'something'}, {'word': 'amazing', 'start': 49.086, 'end': 49.496, 'confidence': 0.99, 'punctuated_word': 'amazing'}, {'word': 'with', 'start': 49.496, 'end': 49.686, 'confidence': 0.99, 'punctuated_word': 'with'}, {'word': 'Llama', 'start': 49.686, 'end': 49.956, 'confidence': 0.97, 'punctuated_word': 'Llama'}, {'word': '4?', 'start': 49.956, 'end': 50.166, 'confidence': 0.97, 'punctuated_word': '4?'}, {'word': 'Let', 'start': 50.296, 'end': 50.476, 'confidence': 0.99, 'punctuated_word': 'Let'}, {'word': 'me', 'start': 50.476, 'end': 50.596, 'confidence': 0.99, 'punctuated_word': 'me'}, {'word': 'know', 'start': 50.596, 'end': 50.826, 'confidence': 0.99, 'punctuated_word': 'know'}, {'word': 'in', 'start': 50.826, 'end': 50.946, 'confidence': 0.99, 'punctuated_word': 'in'}, {'word': 'the', 'start': 50.946, 'end': 51.046, 'confidence': 0.99, 'punctuated_word': 'the'}, {'word': 'comments.', 'start': 51.046, 'end': 51.536, 'confidence': 0.99, 'punctuated_word': 'comments.'}], 'images_manifest': [{'start': '00:00', 'duration': '00:05', 'text': "Hey tech enthusiasts, guess what? Meta just dropped Llama 4, and wow, it's a game changer.", 'url': 'assets/images/1.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro performance comparison vertical high quality'}, {'start': '00:05', 'duration': '00:05', 'text': "They've released two initial models, Scout and Maverick. Scout runs on a single H100 GPU,", 'url': 'assets/images/2.jpg', 'source_url': 'https://hindiimages.etnownews.com/thumb/msid-151357040,width-1280,height-720,resizemode-75/151357040.jpg', 'search_term': 'Llama 4 models Scout Maverick vertical high quality'}, {'start': '00:10', 'duration': '00:06', 'text': 'but packs a punch with 17 billion active parameters and get this, a context window of 10 million tokens.', 'url': 'assets/images/3.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro architecture diagram vertical high quality'}, {'start': '00:16', 'duration': '00:07', 'text': "That's insane for document processing. Maverick is the multilingual beast with 400 billion total parameters, supporting 12 languages,", 'url': 'assets/images/4.jpg', 'source_url': 'https://www.solulab.com/wp-content/uploads/2024/09/Large-Language-Models-1024x569.jpg', 'search_term': 'Multilingual language model comparison chart vertical high quality'}, {'start': '00:23', 'duration': '00:04', 'text': "and amazing multimodal abilities. But here's the juicy part.", 'url': 'assets/images/5.jpg', 'source_url': 'https://storage.googleapis.com/gweb-uniblog-publish-prod/images/final_2.5_blog_1.original.jpg', 'search_term': 'Gemini 2.5 Pro multimodal capabilities vertical high quality'}, {'start': '00:27', 'duration': '00:05', 'text': "They're still training the most powerful version called Behemoth, with a mind-blowing two trillion parameters.", 'url': 'assets/images/6.jpg', 'source_url': 'https://dev.ua/storage/images/82/46/01/64/derived/48bb05f2ea86adc73e3732723a34dd86.jpg', 'search_term': 'Llama 4 Behemoth architecture vertical high quality'}, {'start': '00:32', 'duration': '00:05', 'text': 'Can you imagine what that will do? What makes Llama 4 special? It uses a mixture of experts architecture', 'url': 'assets/images/7.jpg', 'source_url': 'https://storage.googleapis.com/gweb-research2023-media/original_images/ba5144968824a01adef53b4223fb6378-image2.jpg', 'search_term': 'Mixture of Experts architecture diagram vertical high quality'}, {'start': '00:37', 'duration': '00:04', 'text': 'and early fusion for handling text, images, and video seamlessly.', 'url': 'assets/images/8.jpg', 'source_url': 'https://www.researchgate.net/publication/337643039/figure/fig3/AS:855222037536770@1580912231658/a-Early-fusion-video-and-audio-features-are-concatenated-and-used-to-train-an-SVR-b.jpg', 'search_term': 'early fusion text image video vertical high quality'}, {'start': '00:41', 'duration': '00:04', 'text': "The best part? It's open source. You can download it now from llama.com", 'url': 'assets/images/9.jpg', 'source_url': 'https://cdn.arstechnica.net/wp-content/uploads/2024/07/lama405b_hero_3.jpg', 'search_term': 'Llama 4 open source download vertical high quality'}, {'start': '00:45', 'duration': '00:06', 'text': "or try it on Meta's platforms. Ready to build something amazing with Llama 4? Let me know in the comments.", 'url': 'assets/images/10.jpg', 'source_url': 'https://pbs.twimg.com/media/GnzCofAbcAAVkQm.jpg', 'search_term': 'Meta Llama 4 architecture diagram vertical high quality'}], 'bg_music_path': 'assets/audios/bg_music3.mp3'}
     result = create_video_with_overlays(state)
     print(result)
